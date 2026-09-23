@@ -22,15 +22,17 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-        with:
-          # Must match compileSdkVersion/targetSdkVersion in frontend/android/variables.gradle.
-          # "tools" is an obsolete package removed from the SDK repository — don't add it back.
-          packages: |
-            platform-tools
-            platforms;android-36
-            build-tools;36.0.0
+      - name: Ensure required Android SDK packages
+        # GitHub's ubuntu-latest runners already ship with a pre-installed, pre-licensed
+        # Android SDK (ANDROID_HOME is already set) — no third-party action needed. We only
+        # need to make sure the specific platform/build-tools this project compiles against
+        # are present. Versions must match compileSdkVersion/targetSdkVersion in
+        # frontend/android/variables.gradle. ("tools" is an obsolete package removed from the
+        # SDK repository — never add it to this list.)
+        run: |
+          SDKMANAGER="$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager"
+          yes | "$SDKMANAGER" --licenses > /dev/null || true
+          "$SDKMANAGER" "platform-tools" "platforms;android-36" "build-tools;36.0.0"
 
       - name: Install dependencies
         run: npm ci
