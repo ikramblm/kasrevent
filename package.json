@@ -1,0 +1,27 @@
+{
+  "name": "kasrevent-app",
+  "private": true,
+  "version": "0.1.0",
+  "description": "KasrEvent - event hall management platform (rebuilt from the AppSheet original)",
+  "workspaces": [
+    "backend",
+    "frontend"
+  ],
+  "scripts": {
+    "dev:backend": "npm run dev --workspace backend",
+    "dev:frontend": "npm run dev --workspace frontend",
+    "build:backend": "npm run build --workspace backend",
+    "build:frontend": "npm run build --workspace frontend",
+    "test:backend": "npm run test --workspace backend",
+    "lint:backend": "npm run lint --workspace backend",
+    "typecheck:backend": "npm run typecheck --workspace backend",
+    "typecheck:frontend": "npm run typecheck --workspace frontend",
+    "prisma:generate": "npm run prisma:generate --workspace backend",
+    "prisma:migrate": "npm run prisma:migrate --workspace backend",
+    "seed": "npm run seed --workspace backend",
+    "cap:sync": "npm run cap:sync --workspace frontend",
+    "android:open": "npm run android:open --workspace frontend",
+    "android:build-debug": "npm run android:build-debug --workspace frontend",
+    "ios:open": "npm run ios:open --workspace frontend"
+  }
+}

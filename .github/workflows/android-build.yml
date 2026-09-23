@@ -1,0 +1,60 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: android-actions/setup-android@v3
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build web app
+        # Set this repo's Settings → Secrets and variables → Actions → Variables →
+        # VITE_API_BASE_URL to your deployed backend's public URL (e.g.
+        # https://api.kasrevent.example.com/api) before the app can talk to a real server.
+        env:
+          VITE_API_BASE_URL: ${{ vars.VITE_API_BASE_URL }}
+        run: npm run build --workspace frontend
+
+      - name: Sync Capacitor Android project
+        working-directory: frontend
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: frontend/android
+        run: |
+          chmod +x ./gradlew
+          ./gradlew assembleDebug
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kasrevent-debug-apk
+          path: frontend/android/app/build/outputs/apk/debug/app-debug.apk
+
+      # Optional: attach the APK to a GitHub Release when you push a tag like "v1.0.0".
+      # Uncomment once you're ready to cut real releases.
+      # - name: Create release with APK
+      #   if: startsWith(github.ref, 'refs/tags/v')
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     files: frontend/android/app/build/outputs/apk/debug/app-debug.apk

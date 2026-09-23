@@ -1,0 +1,455 @@
+// KasrEvent — PostgreSQL schema, rebuilt from the AppSheet original.
+// Field names are ASCII (accented French names from the source app are kept as
+// human-readable labels in the frontend/API layer only) — see docs/ASSUMPTIONS.md.
+// AppSheet's 4 navigation "Vue *" tables, the `Langues` localization table, `Photo system`
+// and the orphaned `Brouillant` table are NOT modeled here — they were UI/editor artifacts,
+// not business data. See docs/APP_MIGRATION_STATUS.md.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  GERANT
+  USER
+}
+
+enum TypeEvenement {
+  MARIAGE
+  SEMINAIRE
+  ANNIVERSAIRE
+  EVENEMENT
+  AUTRE
+}
+
+enum StatutReservation {
+  EN_ATTENTE
+  CONFIRMEE
+  ANNULEE
+  CLOTURE
+}
+
+enum StatutInvite {
+  CONFIRME
+  NON_CONFIRME
+}
+
+enum StatutConfiscationInvite {
+  AUCUNE
+  CONFISQUE
+  RESTITUE
+}
+
+enum StatutConfiscation {
+  CONFISQUE
+  RESTITUE
+}
+
+enum StatutAcces {
+  VALIDE
+  EXPIRE
+}
+
+enum TypeServiceTable {
+  AUCUN_SERVICE
+  BUFFET
+  SERVICE_A_TABLE
+}
+
+enum TypeCharge {
+  ACHAT
+  APPROVISIONNEMENT
+  PAIEMENT_SALAIRE
+  PAIEMENT_DETTES_FOURNISSEURS
+  PAIEMENT_DETTES_TRAITEURS
+  PAIEMENT_FACTURES
+  INVESTISSEMENT
+  REPARATION
+  AUTRE
+}
+
+enum MethodePaiement {
+  ESPECE
+  CHEQUE
+  VIREMENT
+  AUTRE
+}
+
+enum TypePaie {
+  MENSUELLE
+  JOURNALIERE
+}
+
+enum TypeDecoration {
+  FLEURS
+  TAPIS
+  CHAISES
+  TABLES
+  SCULPTURE
+}
+
+model User {
+  id           String   @id @default(uuid())
+  nom          String
+  role         Role     @default(USER)
+  telephone    String?
+  email        String?  @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  clients             Client[]
+  salles              Salle[]
+  reservations        Reservation[]
+  archives            ArchiveReservation[]
+  accesInvites        AccesInvite[]
+  confiscations       ConfiscationTelephone[]
+  servicesTables      ServiceTable[]
+  charges             Charge[]
+  decorations         Decoration[]
+  traiteurs           Traiteur[]
+  employesLies        Employe[]
+  historiquePaie      HistoriquePaie[]
+  invites             Invite[]
+  loginEvents         LoginEvent[]
+
+  @@map("users")
+}
+
+model LoginEvent {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  success   Boolean
+  createdAt DateTime @default(now())
+
+  @@map("login_events")
+}
+
+model Client {
+  id          String   @id @default(uuid())
+  nom         String
+  prenom      String?
+  telephone   String?
+  email       String?
+  adresse     String?
+  utilisateurId String?
+  utilisateur User?    @relation(fields: [utilisateurId], references: [id])
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  reservations  Reservation[]
+  confiscations ConfiscationTelephone[]
+  invites       Invite[]
+
+  @@map("clients")
+}
+
+model Salle {
+  id                 String   @id @default(uuid())
+  nom                String
+  localisation       String?
+  lienLocalisation   String?
+  capacite           Int?
+  tarif              Decimal? @db.Decimal(12, 2)
+  equipementsInclus  String[] @default([])
+  photo              String?
+  utilisateurId      String?
+  utilisateur        User?    @relation(fields: [utilisateurId], references: [id])
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  reservations Reservation[]
+
+  @@map("salles")
+}
+
+model Reservation {
+  id             String            @id @default(uuid())
+  clientId       String
+  client         Client            @relation(fields: [clientId], references: [id])
+  dateDebut      DateTime
+  dateFin        DateTime
+  typeEvenement  TypeEvenement     @default(AUTRE)
+  nombreInvites  Int               @default(0)
+  statut         StatutReservation @default(EN_ATTENTE)
+  salleId        String?
+  salle          Salle?            @relation(fields: [salleId], references: [id])
+  note           String?
+  confiscationPolicy Boolean       @default(false)
+  totalAPayer    Decimal           @default(0) @db.Decimal(12, 2)
+  avanceVersee   Decimal           @default(0) @db.Decimal(12, 2)
+  creerFacture   Boolean           @default(false)
+  utilisateurId  String?
+  utilisateur    User?             @relation(fields: [utilisateurId], references: [id])
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  invites             Invite[]
+  accesInvites        AccesInvite[]
+  confiscations       ConfiscationTelephone[]
+  servicesTables      ServiceTable[]
+  demandesReservation DemandeReservation[]
+  reponsesInvitation  ReponseInvitation[]
+
+  @@index([salleId, dateDebut, dateFin])
+  @@map("reservations")
+}
+
+/// Snapshot of a Reservation at the moment it is closed/cancelled and archived.
+model ArchiveReservation {
+  id               String   @id @default(uuid())
+  reservationId    String
+  clientNom        String
+  dateDebut        DateTime
+  dateFin          DateTime
+  typeEvenement    TypeEvenement
+  nombreInvites    Int
+  statut           StatutReservation
+  salleNom         String?
+  totalAPayer      Decimal  @db.Decimal(12, 2)
+  avanceVersee     Decimal  @db.Decimal(12, 2)
+  resteAPayer      Decimal  @db.Decimal(12, 2)
+  note             String?
+  dateArchivage    DateTime @default(now())
+  utilisateurId    String?
+  utilisateur      User?    @relation(fields: [utilisateurId], references: [id])
+
+  @@map("archives_reservations")
+}
+
+model Invite {
+  id             String        @id @default(uuid())
+  reservationId  String
+  reservation    Reservation   @relation(fields: [reservationId], references: [id])
+  clientId       String?
+  client         Client?       @relation(fields: [clientId], references: [id])
+  nom            String
+  prenom         String?
+  telephone      String?
+  statut         StatutInvite  @default(NON_CONFIRME)
+  confiscation   StatutConfiscationInvite @default(AUCUNE)
+  qrCodeToken    String        @unique @default(uuid())
+  heureEntree    DateTime?
+  heureSortie    DateTime?
+  utilisateurId  String?
+  utilisateur    User?         @relation(fields: [utilisateurId], references: [id])
+  createdAt      DateTime      @default(now())
+
+  accesInvites  AccesInvite[]
+  confiscations ConfiscationTelephone[]
+
+  @@map("invites")
+}
+
+/// One row per QR scan / check-in attempt (mirrors AppSheet's "Accès Invités").
+model AccesInvite {
+  id             String       @id @default(uuid())
+  reservationId  String
+  reservation    Reservation  @relation(fields: [reservationId], references: [id])
+  inviteId       String
+  invite         Invite       @relation(fields: [inviteId], references: [id])
+  dateAcces      DateTime     @default(now())
+  heureEntree    DateTime     @default(now())
+  statutAcces    StatutAcces
+  utilisateurId  String?
+  utilisateur    User?        @relation(fields: [utilisateurId], references: [id])
+
+  @@map("acces_invites")
+}
+
+model ConfiscationTelephone {
+  id                String             @id @default(uuid())
+  reservationId     String
+  reservation       Reservation        @relation(fields: [reservationId], references: [id])
+  inviteId          String?
+  invite            Invite?            @relation(fields: [inviteId], references: [id])
+  clientId          String?
+  client            Client?            @relation(fields: [clientId], references: [id])
+  numeroTelephone   String?
+  heureConfiscation DateTime           @default(now())
+  heureRestitution  DateTime?
+  statut            StatutConfiscation @default(CONFISQUE)
+  photoTelephone    String?
+  utilisateurId     String?
+  utilisateur       User?              @relation(fields: [utilisateurId], references: [id])
+
+  @@map("confiscations_telephones")
+}
+
+model ServiceTable {
+  id              String           @id @default(uuid())
+  reservationId   String
+  reservation     Reservation      @relation(fields: [reservationId], references: [id])
+  typeService     TypeServiceTable @default(AUCUN_SERVICE)
+  traiteurId      String?
+  traiteur        Traiteur?        @relation(fields: [traiteurId], references: [id])
+  menuPropose     String?
+  prixParPersonne Decimal          @default(0) @db.Decimal(12, 2)
+  nombreInvites   Int              @default(0)
+  total           Decimal          @default(0) @db.Decimal(12, 2)
+  employeIds      String[]         @default([])
+  date            DateTime         @default(now())
+  utilisateurId   String?
+  utilisateur     User?            @relation(fields: [utilisateurId], references: [id])
+
+  @@map("services_tables")
+}
+
+model Fournisseur {
+  id        String   @id @default(uuid())
+  company   String
+  nom       String?
+  tel       String?
+  adresse   String?
+  logo      String?
+  dettes    Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt DateTime @default(now())
+
+  charges Charge[]
+
+  @@map("fournisseurs")
+}
+
+model Traiteur {
+  id            String   @id @default(uuid())
+  nom           String
+  specialite    String[] @default([])
+  contact       String?
+  telephone     String?
+  adresse       String?
+  tarifs        Decimal? @db.Decimal(12, 2)
+  dettes        Decimal  @default(0) @db.Decimal(12, 2)
+  photo         String?
+  siteWeb       String?
+  utilisateurId String?
+  utilisateur   User?    @relation(fields: [utilisateurId], references: [id])
+  createdAt     DateTime @default(now())
+
+  charges        Charge[]
+  servicesTables ServiceTable[]
+
+  @@map("traiteurs")
+}
+
+model Employe {
+  id                 String    @id @default(uuid())
+  nom                String
+  prenom             String?
+  role               String
+  telephone          String?
+  email              String?
+  disponibilite      Boolean   @default(true)
+  typePaie           TypePaie  @default(MENSUELLE)
+  paieMensuelle      Decimal?  @db.Decimal(12, 2)
+  paieParJour        Decimal?  @db.Decimal(12, 2)
+  montantAPayer      Decimal   @default(0) @db.Decimal(12, 2)
+  jourDePaie         Int?
+  derniereDatePaie   DateTime?
+  utilisateurId      String?
+  utilisateur        User?     @relation(fields: [utilisateurId], references: [id])
+  createdAt          DateTime  @default(now())
+
+  charges        Charge[]
+  historiquePaie HistoriquePaie[]
+
+  @@map("employes")
+}
+
+model HistoriquePaie {
+  id              String          @id @default(uuid())
+  employeId       String
+  employe         Employe         @relation(fields: [employeId], references: [id])
+  moisPaye        String?
+  date            DateTime        @default(now())
+  montant         Decimal         @db.Decimal(12, 2)
+  methodePaiement MethodePaiement @default(ESPECE)
+  montantPaye     Decimal         @db.Decimal(12, 2)
+  detteAvant      Decimal         @default(0) @db.Decimal(12, 2)
+  description     String?
+  utilisateurId   String?
+  utilisateur     User?           @relation(fields: [utilisateurId], references: [id])
+
+  @@map("historique_paie")
+}
+
+model Charge {
+  id              String          @id @default(uuid())
+  type            TypeCharge
+  fournisseurId   String?
+  fournisseur     Fournisseur?    @relation(fields: [fournisseurId], references: [id])
+  traiteurId      String?
+  traiteur        Traiteur?       @relation(fields: [traiteurId], references: [id])
+  employeId       String?
+  employe         Employe?        @relation(fields: [employeId], references: [id])
+  moisPaye        String?
+  montantTotal    Decimal         @default(0) @db.Decimal(12, 2)
+  methodePaiement MethodePaiement @default(ESPECE)
+  montantPaye     Decimal         @default(0) @db.Decimal(12, 2)
+  description     String?
+  photo           String?
+  dateHeure       DateTime        @default(now())
+  utilisateurId   String?
+  utilisateur     User?           @relation(fields: [utilisateurId], references: [id])
+
+  @@map("charges")
+}
+
+model Decoration {
+  id                String         @id @default(uuid())
+  nom               String
+  type              TypeDecoration
+  stockDisponible   Int?
+  prixLocation      Decimal?       @db.Decimal(12, 2)
+  utilisateurId     String?
+  utilisateur       User?          @relation(fields: [utilisateurId], references: [id])
+
+  @@map("decorations")
+}
+
+/// Public booking-request intake (was a Google Form in the original app).
+model DemandeReservation {
+  id                String       @id @default(uuid())
+  nomPrenom         String
+  dateDebut         DateTime?
+  dateFin           DateTime?
+  typeEvenement     String?
+  nombreInvites     Int?
+  numeroTelephone   String
+  reservationId     String?
+  reservation       Reservation? @relation(fields: [reservationId], references: [id])
+  createdAt         DateTime     @default(now())
+
+  @@map("demandes_reservation")
+}
+
+/// Guest RSVP intake (was a second Google Form in the original app).
+model ReponseInvitation {
+  id              String      @id @default(uuid())
+  nomPrenom       String
+  numeroTelephone String?
+  reservationId   String
+  reservation     Reservation @relation(fields: [reservationId], references: [id])
+  createdAt       DateTime    @default(now())
+
+  @@map("reponses_invitation")
+}
+
+/// Site-wide configuration (was the "Admin" table: social links, WhatsApp number).
+model AdminConfig {
+  id              String   @id @default("singleton")
+  nom             String?
+  lienFacebook    String?
+  lienInstagram   String?
+  lienUtile       String?
+  numeroWhatsapp  String?
+  updatedAt       DateTime @updatedAt
+
+  @@map("admin_config")
+}

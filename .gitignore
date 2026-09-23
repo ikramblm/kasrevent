@@ -1,0 +1,11 @@
+node_modules/
+dist/
+build/
+.env
+.env.production
+.env.local
+*.log
+coverage/
+.DS_Store
+frontend/.vite/
+backend/prisma/dev.db
