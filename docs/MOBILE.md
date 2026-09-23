@@ -35,6 +35,12 @@ no local Android Studio needed.** To get the file:
    `kasrevent-debug-apk` artifact (a zip containing `app-debug.apk`).
 3. Install it on a device with "install unknown apps" enabled, or an emulator.
 
+The workflow installs an explicit Android SDK package list (`platforms;android-36`,
+`build-tools;36.0.0`) matching `compileSdkVersion`/`targetSdkVersion` in
+`frontend/android/variables.gradle` — if you ever bump those (e.g. Capacitor upgrades the
+generated project to a newer API level), update the `packages:` list in
+`.github/workflows/android-build.yml` to match, or the SDK setup step will fail.
+
 This produces a **debug** APK, fine for internal testing/sideloading. For a Play Store
 release you additionally need:
 - A release signing keystore (`keytool -genkey ...`), added to the repo as GitHub secrets
