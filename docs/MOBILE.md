@@ -51,8 +51,12 @@ release you additionally need:
   `assembleDebug`.
 
 To build locally instead of via CI: `npm run android:open` opens the project in Android
-Studio (requires it installed), or `npm run android:build-debug` runs the Gradle build
-directly if you have the Android SDK installed locally.
+Studio (requires it installed, and it manages its own bundled JDK), or
+`npm run android:build-debug` runs the Gradle build directly if you have the Android SDK
+**and JDK 21** installed locally — `frontend/android/app/capacitor.build.gradle` (regenerated
+by `cap sync`/`cap update`) sets `sourceCompatibility`/`targetCompatibility` to Java 21; an
+older JDK on your `PATH` will fail the build the same way it failed in CI before this was
+pinned to Java 21 there.
 
 ## iOS — CI only compiles it; you must sign it yourself
 
