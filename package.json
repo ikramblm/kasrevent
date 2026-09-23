@@ -3,6 +3,9 @@
   "private": true,
   "version": "0.1.0",
   "description": "KasrEvent - event hall management platform (rebuilt from the AppSheet original)",
+  "engines": {
+    "node": ">=22.0.0"
+  },
   "workspaces": [
     "backend",
     "frontend"
