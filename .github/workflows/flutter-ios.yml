@@ -1,0 +1,40 @@
+name: Build Flutter iOS app (simulator, unsigned)
+
+# Apple requires a paid Apple Developer Program membership + signing certificates/
+# provisioning profiles to produce an IPA installable on a real device, TestFlight, or the
+# App Store — no free workaround exists, and this workflow does not have your Apple
+# credentials. What this DOES do: build the app unsigned for the iOS Simulator on every
+# push, as a build-health check. See docs/MOBILE.md for real device/App Store signing.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  build-ios-simulator:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.8"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Test
+        working-directory: mobile
+        run: flutter test
+
+      - name: Build for iOS Simulator (unsigned)
+        working-directory: mobile
+        run: flutter build ios --simulator --no-codesign --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}

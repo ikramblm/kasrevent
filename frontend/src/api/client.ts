@@ -1,10 +1,7 @@
 import axios from "axios";
 
-// In the browser (served from the same origin as the API, or via the Vite dev proxy) a
-// relative "/api" works. Packaged as a native app (Capacitor), there is no same-origin
-// server to relatively proxy to, so the native builds are compiled with an absolute
-// production API URL baked in via VITE_API_BASE_URL (see .env.production.example and
-// docs/MOBILE.md).
+// In local dev (served via the Vite dev proxy) a relative "/api" works. If the deployed
+// frontend and backend ever live on different origins, set VITE_API_BASE_URL at build time.
 const baseURL = import.meta.env.VITE_API_BASE_URL || "/api";
 
 export const api = axios.create({ baseURL });

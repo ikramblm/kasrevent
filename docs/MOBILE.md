@@ -1,104 +1,128 @@
-# Mobile apps (Android & iOS)
+# Mobile app (Flutter)
 
-KasrEvent's React frontend is wrapped as native Android and iOS apps using
-[Capacitor](https://capacitorjs.com) — it packages the same web UI (`frontend/dist`) inside
-a thin native shell, rather than a separate rewrite. This is the pragmatic path from "one
-React codebase" to "installable on both app stores"; if a fully native look/feel or
-device-API-heavy features are needed later, individual screens can be replaced without
-starting over.
+`mobile/` is a real native Android/iOS app written in Flutter/Dart — not a website wrapped
+in a native shell. It's a separate client from the React web dashboard (`frontend/`), talking
+to the **same** backend REST API (`backend/`, see [docs/API.md](API.md)), since the API is
+plain JSON over HTTP and doesn't care what's calling it.
 
 ```
-frontend/
-  capacitor.config.ts   # app id, name, web dir
-  android/              # generated native Android project (committed to git)
-  ios/                  # generated native iOS project (committed to git)
+mobile/
+  lib/
+    core/            API client (Dio), secure token storage, theme, build-time config
+    models/          Dart data classes matching the API's JSON shapes
+    providers/       AuthProvider (session/JWT lifecycle)
+    screens/         One file per app screen
+    widgets/         Shared UI: AppScaffold, AppDrawer, StatusBadge, SimpleCrudScreen, …
+    routes.dart       Named-route table
+    main.dart
+  android/, ios/     Generated native projects (committed to git)
+  test/              Unit + widget tests
 ```
 
-## How a build works
+## Why Flutter here, not the previous Capacitor build
 
-1. `npm run build --workspace frontend` — builds the web app into `frontend/dist`, using
-   `VITE_API_BASE_URL` (see `frontend/.env.production.example`) as the backend URL, since a
-   packaged app has no dev-server proxy to rely on.
-2. `npx cap sync android` / `npx cap sync ios` (run from `frontend/`) — copies the fresh
-   `dist` into the native projects and updates native dependencies.
-3. The native project is built with the platform's own toolchain (Gradle for Android,
-   Xcode for iOS).
+An earlier iteration of this project wrapped the React web dashboard in Capacitor to get
+Android/iOS builds quickly. That was replaced with this real Flutter app because a
+WebView-wrapped website is not what "an app" means here — Flutter compiles to actual native
+UI widgets, not an embedded browser. The web dashboard (`frontend/`) still exists as a
+separate, legitimate product (a browser-based back-office), but it is no longer wrapped as a
+mobile app; `mobile/` is the app now.
 
-## Android — fully automated (`.github/workflows/android-build.yml`)
+## Feature coverage vs. the web dashboard
 
-On every push to `main` (or manually via **Actions → Build Android APK → Run workflow**),
-GitHub builds a debug APK and uploads it as a workflow artifact — **no Mac, no paid account,
-no local Android Studio needed.** To get the file:
+Implemented: login (JWT), role-filtered navigation (Admin/Gérant/User, same tiers as the web
+app), dashboard KPIs, Réservations (list/create/detail/close/archive), Clients, Salles
+(with a map-link button), guest management + QR code generation, **camera-based QR check-in
+scanning** (`mobile_scanner`), Confiscations téléphones (with restitution), Charges (with the
+same type-conditional fields as the web form), Fournisseurs, Traiteurs, Décorations, Employés
+(with the monthly-payroll-run action), Historique de paie, Utilisateurs (Admin).
 
-1. Push to GitHub (see the repo root for the exact commands).
-2. Go to the repo's **Actions** tab → the latest **Build Android APK** run → download the
-   `kasrevent-debug-apk` artifact (a zip containing `app-debug.apk`).
-3. Install it on a device with "install unknown apps" enabled, or an emulator.
+Not ported to the mobile app (present on the web dashboard only): the public booking-request
+/ RSVP intake pages (`Demandes de réservation`, RSVP — these are meant for the *public*, who
+won't have this app installed, so they stay as web pages), the site-config screen
+(`Admin config`), and data-visualization charts on the dashboard (the mobile dashboard shows
+the same KPI numbers as plain cards, no charts).
 
-The workflow installs an explicit Android SDK package list (`platforms;android-36`,
-`build-tools;36.0.0`) matching `compileSdkVersion`/`targetSdkVersion` in
-`frontend/android/variables.gradle` — if you ever bump those (e.g. Capacitor upgrades the
-generated project to a newer API level), update the `packages:` list in
-`.github/workflows/android-build.yml` to match, or the SDK setup step will fail.
+## Configuring the backend URL
 
-This produces a **debug** APK, fine for internal testing/sideloading. For a Play Store
-release you additionally need:
-- A release signing keystore (`keytool -genkey ...`), added to the repo as GitHub secrets
-  (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`,
-  `ANDROID_KEY_PASSWORD`), and a `signingConfigs` block in
-  `frontend/android/app/build.gradle` referencing them.
-- Then build `./gradlew bundleRelease` (AAB, what the Play Store wants) instead of
-  `assembleDebug`.
+The app needs to know where your backend lives, baked in at build time:
 
-To build locally instead of via CI: `npm run android:open` opens the project in Android
-Studio (requires it installed, and it manages its own bundled JDK), or
-`npm run android:build-debug` runs the Gradle build directly if you have the Android SDK
-**and JDK 21** installed locally — `frontend/android/app/capacitor.build.gradle` (regenerated
-by `cap sync`/`cap update`) sets `sourceCompatibility`/`targetCompatibility` to Java 21; an
-older JDK on your `PATH` will fail the build the same way it failed in CI before this was
-pinned to Java 21 there.
+```bash
+flutter build apk --dart-define=API_BASE_URL=https://api.kasrevent.example.com/api
+```
+
+Without it, the app defaults to `http://10.0.2.2:4000/api` (the Android emulator's alias for
+your host machine's `localhost:4000`) — convenient for local development, useless on a real
+phone or in a CI-built APK. The CI workflows below read this from a repository variable.
+
+## Android — fully automated (`.github/workflows/flutter-android.yml`)
+
+On every push to `main` (or manually via **Actions → Build Flutter Android APK → Run
+workflow**), GitHub analyzes, tests, and builds a debug APK, uploading it as a workflow
+artifact:
+
+1. Push to GitHub.
+2. **Settings → Secrets and variables → Actions → Variables** → add `API_BASE_URL` pointing
+   at your deployed backend (e.g. `https://api.kasrevent.example.com/api`) — do this **before**
+   the first real build, or the APK will be built pointing at nothing.
+3. Go to the repo's **Actions** tab → the latest **Build Flutter Android APK** run → download
+   the `kasrevent-debug-apk` artifact → unzip → `app-debug.apk`.
+4. Install it on a device with "install unknown apps" enabled, or an emulator.
+
+This is a **debug** build — fine for internal testing/sideloading. For a Play Store release:
+- Generate a release keystore (`keytool -genkey ...`), add it to the repo as GitHub secrets,
+  and configure `signingConfigs` in `mobile/android/app/build.gradle.kts`.
+- Build `flutter build appbundle --release` (the `.aab` format the Play Store wants) instead
+  of the debug APK.
+
+To build locally instead of via CI: `cd mobile && flutter run` (needs a connected
+device/emulator and the Android SDK's cmdline-tools installed — see `flutter doctor`), or
+`flutter build apk --debug`.
 
 ## iOS — CI only compiles it; you must sign it yourself
 
-Apple requires a **paid Apple Developer Program membership** (currently ~$99/year) and
-signing certificates/provisioning profiles to produce an IPA installable on a real device,
-via TestFlight, or on the App Store — there is no free workaround, and this project cannot
-create Apple credentials on your behalf.
+Apple requires a **paid Apple Developer Program membership** (~$99/year) and signing
+certificates/provisioning profiles to produce an IPA installable on a real device, via
+TestFlight, or the App Store — there is no free workaround, and nothing here has your Apple
+credentials.
 
-What **is** automated (`.github/workflows/ios-build.yml`, runs on a GitHub-hosted macOS
+What **is** automated (`.github/workflows/flutter-ios.yml`, on a GitHub-hosted macOS
 runner): an unsigned build for the iOS Simulator on every push to `main`, as a build-health
-check (catches "it doesn't compile for iOS" early). This has not been run end-to-end in this
-environment (no macOS available while building this project) — treat the first real run on
-your repo as a smoke test, and fix any Xcode-version-specific issues it surfaces.
+check. This has not been run end-to-end in this environment (no macOS available while
+building this project) — treat its first real run on your repo as a smoke test.
 
 **To get a real, installable iOS app once you have an Apple Developer account:**
 
-1. Open the project in Xcode: `npm run ios:open` (requires a Mac with Xcode installed).
-2. In Xcode: select the `App` target → **Signing & Capabilities** → sign in with your Apple
-   ID and pick your Team; Xcode will manage certificates/provisioning automatically for
-   development builds.
-3. **Product → Archive**, then use the Organizer window to upload to App Store Connect
-   (for TestFlight/App Store) or export an ad-hoc IPA (for direct device installs).
+1. `cd mobile && open ios/Runner.xcworkspace` (needs a Mac with Xcode).
+2. In Xcode: select the `Runner` target → **Signing & Capabilities** → sign in with your
+   Apple ID and pick your Team; Xcode manages development certificates/provisioning
+   automatically.
+3. **Product → Archive**, then use the Organizer to upload to App Store Connect
+   (TestFlight/App Store) or export an ad-hoc IPA for direct device installs.
 4. To automate this in CI instead of doing it locally every time, add
-   [fastlane](https://fastlane.tools) (`match` for certificate management,
-   `gym`/`pilot`/`deliver` for building and uploading) — this is a meaningful follow-up
-   project, not something to bolt on blindly without your Apple credentials in hand.
+   [fastlane](https://fastlane.tools) (`match` for certificates, `gym`/`pilot`/`deliver` for
+   building and uploading) — a meaningful follow-up project once you have Apple credentials
+   in hand, not something to bolt on blindly without them.
 
 ## App identity, icon, splash screen
 
-- App ID (`com.kasrevent.app`) and display name (`KasrEvent`) are set in
-  `frontend/capacitor.config.ts` — changing either after a store submission requires
-  republishing as a new app, so lock these in before your first real release.
-- Default Capacitor icons/splash screens are currently in place (placeholders). Replace them
-  with `@capacitor/assets` (`npx capacitor-assets generate`) once you have real artwork —
-  see https://capacitorjs.com/docs/guides/splash-screens-and-icons.
+- Application id: `com.kasrevent.kasrevent_mobile` (Android `applicationId` /
+  `namespace` in `mobile/android/app/build.gradle.kts`; iOS `PRODUCT_BUNDLE_IDENTIFIER` in
+  Xcode project settings). Changing this after a store submission means republishing as a
+  new app — lock it in (rename it if you want something cleaner) before your first real
+  release.
+- Display name: "KasrEvent" (Android `AndroidManifest.xml`'s `android:label`; iOS
+  `Info.plist`'s `CFBundleDisplayName`).
+- Default Flutter launcher icon/splash screen are currently placeholders. Replace them with
+  the `flutter_launcher_icons` and `flutter_native_splash` packages once you have real
+  artwork.
 
 ## Native permissions
 
-The in-app QR scanner (`html5-qrcode`, used on the web and inside the native WebView) needs
-camera access. This is already wired up:
-`frontend/android/app/src/main/AndroidManifest.xml` declares
-`android.permission.CAMERA`, and `frontend/ios/App/App/Info.plist` has an
-`NSCameraUsageDescription` string. Neither was generated by Capacitor by default — both were
-added by hand, so if you ever regenerate either native project from scratch
-(`cap add android`/`cap add ios` again), re-add them.
+The in-app QR scanner (`mobile_scanner`) needs camera access — already wired up by hand (not
+generated automatically): `android/app/src/main/AndroidManifest.xml` declares
+`android.permission.CAMERA`, and `ios/Runner/Info.plist` has an `NSCameraUsageDescription`
+string. Both also declare `android.permission.INTERNET` (Android; iOS needs no equivalent
+entry) since a release build won't have network access without it — Flutter's debug/profile
+builds get it for free via their own manifest overlay, which masked this during local
+testing.

@@ -50,7 +50,7 @@ Delete/Edit/Add CRUD (clients, salles, fournisseurs, traiteurs, décorations) ar
 generic `crudFactory` instead — see [APP_MIGRATION_STATUS.md](APP_MIGRATION_STATUS.md) for
 why literally every one of the original's 239 actions did not need its own bespoke handler.
 
-## Frontend (`frontend/`)
+## Web dashboard (`frontend/`)
 
 - `components/layout/` — the dashboard shell (Sidebar, Header, DashboardLayout). The sidebar
   filters menu items by the signed-in user's role, reproducing the original's view-level
@@ -66,6 +66,15 @@ why literally every one of the original's 239 actions did not need its own bespo
 - `auth/` — a React context backed by a JWT in `localStorage`, plus `ProtectedRoute` for
   route-level role gating (mirrored by server-side `authorize()` middleware — the frontend
   gate is a UX convenience, not the security boundary).
+
+## Mobile app (`mobile/`)
+
+A separate, real native Flutter client (Android/iOS) — not the web dashboard wrapped in a
+native shell — consuming the same backend API. Mirrors the web dashboard's module shape
+(`core/` = API client & auth plumbing, `providers/` = session state, `screens/` = one per
+route, `widgets/` = shared UI incl. a config-driven `SimpleCrudScreen` equivalent to the
+web's `SimpleCrudPage`). See [docs/MOBILE.md](MOBILE.md) for full detail, build/CI
+instructions, and exactly which web-dashboard features were and weren't ported.
 
 ## Security model
 

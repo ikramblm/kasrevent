@@ -1,0 +1,62 @@
+name: Build Flutter Android APK
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch: {}
+
+jobs:
+  build-android:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: "3.44.8"
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        working-directory: mobile
+        run: flutter pub get
+
+      - name: Analyze
+        working-directory: mobile
+        run: flutter analyze
+
+      - name: Test
+        working-directory: mobile
+        run: flutter test
+
+      - name: Build debug APK
+        working-directory: mobile
+        # Set this repo's Settings → Secrets and variables → Actions → Variables →
+        # API_BASE_URL to your deployed backend's public URL (e.g.
+        # https://api.kasrevent.example.com/api) before the app can talk to a real server.
+        run: flutter build apk --debug --dart-define=API_BASE_URL=${{ vars.API_BASE_URL }}
+
+      - name: List APK output (debug)
+        run: find mobile/build/app/outputs/flutter-apk -type f -name "*.apk" || true
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: kasrevent-debug-apk
+          path: mobile/build/app/outputs/flutter-apk/app-debug.apk
+          if-no-files-found: error
+
+      # Optional: attach the APK to a GitHub Release when you push a tag like "v1.0.0".
+      # Uncomment once you're ready to cut real releases (and switch to `flutter build apk
+      # --release` with a signing config — see docs/MOBILE.md).
+      # - name: Create release with APK
+      #   if: startsWith(github.ref, 'refs/tags/v')
+      #   uses: softprops/action-gh-release@v2
+      #   with:
+      #     files: mobile/build/app/outputs/flutter-apk/app-debug.apk

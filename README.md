@@ -2,8 +2,9 @@
 
 A real, coded rebuild of **KasrEvent 🏰**, an event/wedding-hall booking and management
 platform originally built as a no-code AppSheet app. This repository replaces the AppSheet
-app with a TypeScript backend (Express + PostgreSQL via Prisma) and a React dashboard
-frontend, reproducing its data model, business logic, and permission model — see
+app with a TypeScript backend (Express + PostgreSQL via Prisma), a React web dashboard, and
+a **native Flutter mobile app** (Android/iOS), reproducing the original's data model,
+business logic, and permission model — see
 [docs/APP_MIGRATION_STATUS.md](docs/APP_MIGRATION_STATUS.md) for exactly what maps to what,
 and [docs/ASSUMPTIONS.md](docs/ASSUMPTIONS.md) for every place a decision had to be made
 because the original wasn't fully documented.
@@ -11,16 +12,17 @@ because the original wasn't fully documented.
 ## Stack
 
 - **Backend**: Node.js, TypeScript, Express, Prisma ORM, PostgreSQL, JWT auth, Zod validation
-- **Frontend**: React, TypeScript, Vite, Tailwind CSS, React Query, React Router
-- **QR check-in**: `qrcode` (generation) + `html5-qrcode` (camera scanning in the browser)
-- **Testing**: Vitest (backend)
+- **Web dashboard**: React, TypeScript, Vite, Tailwind CSS, React Query, React Router
+- **Mobile app**: Flutter/Dart (Android + iOS), Provider, Dio, `mobile_scanner` for QR check-in
+- **Testing**: Vitest (backend), `flutter test` (mobile)
 
 ## Repository layout
 
 ```
 backend/    Express API, Prisma schema & migrations, tests, CSV data-migration script
-frontend/   React dashboard (Vite)
-docs/       Architecture, database, API, assumptions, migration status, deployment
+frontend/   React web dashboard (Vite) — browser-based back-office
+mobile/     Flutter native app (Android/iOS) — the actual "app"
+docs/       Architecture, database, API, assumptions, migration status, deployment, mobile
 docker-compose.yml   Local PostgreSQL for development
 ```
 
@@ -72,13 +74,14 @@ All of the above pass as of this rebuild (see docs/APP_MIGRATION_STATUS.md for c
 notes — not every one of the original app's 239 actions has a dedicated automated test;
 the core business-logic ones do).
 
-## Mobile apps (Android & iOS)
+## Mobile app (Flutter, Android & iOS)
 
-The same frontend is packaged as native Android and iOS apps via Capacitor
-(`frontend/android/`, `frontend/ios/`). Push to GitHub and the **Build Android APK** Actions
+`mobile/` is a real native Flutter app (not a website wrapped in a native shell) that talks
+to the same backend API. Push to GitHub and the **Build Flutter Android APK** Actions
 workflow produces a downloadable, installable `.apk` automatically — no local Android Studio
 needed. iOS requires your own Apple Developer account for a real installable build (Apple's
-rule, not this project's) — see [docs/MOBILE.md](docs/MOBILE.md) for the full story on both.
+rule, not this project's) — see [docs/MOBILE.md](docs/MOBILE.md) for the full story on both,
+including how to point the app at your deployed backend.
 
 ## Documentation
 
