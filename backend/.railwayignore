@@ -1,0 +1,10 @@
+# The Railway CLI's `railway up` compresses whatever's in this directory to upload it —
+# without this, it was including node_modules (and possibly following npm-workspaces
+# symlinks/junctions back toward the repo root), which crashed the CLI's compressor with
+# an out-of-memory error trying to archive gigabytes of stuff it never needed.
+node_modules/
+dist/
+.env
+*.log
+coverage/
+csv-export/
