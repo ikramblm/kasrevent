@@ -38,6 +38,20 @@ describe("errorHandler — Prisma error mapping", () => {
     expect(res.status).toHaveBeenCalledWith(404);
   });
 
+  // Found live in production: deleting a Client with an existing Reservation raises the FK
+  // violation at the Postgres level (RESTRICT), which Prisma surfaces as an "unknown"
+  // request error rather than the P2003/P2014 codes above — must be caught separately.
+  it("maps a RESTRICT foreign-key violation (PrismaClientUnknownRequestError) to a 409", () => {
+    const res = mockRes();
+    const err = new Prisma.PrismaClientUnknownRequestError(
+      'Invalid `prisma.client.delete()` invocation:\n\nError occurred during query execution:\nConnectorError(ConnectorError { user_facing_error: None, kind: QueryError(PostgresError { code: "23001", message: "update or delete on table \\"clients\\" violates RESTRICT setting of foreign key constraint \\"reservations_clientId_fkey\\" on table \\"reservations\\"", severity: "ERROR", detail: Some("Key (id)=(1f9c708e-23d2-4bf9-8c15-41bf289c004e) is referenced from table \\"reservations\\"."), column: None, hint: None }), transient: false })',
+      { clientVersion: "5.22.0" }
+    );
+    errorHandler(err, {} as any, res, vi.fn());
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: expect.stringContaining("referenced") }));
+  });
+
   it("falls back to 500 for an unrecognized Prisma error code", () => {
     const res = mockRes();
     errorHandler(prismaError("P9999"), {} as any, res, vi.fn());

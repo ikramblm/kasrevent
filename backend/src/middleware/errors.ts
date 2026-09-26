@@ -51,6 +51,18 @@ function mapPrismaError(err: Prisma.PrismaClientKnownRequestError): ApiError | n
   }
 }
 
+/**
+ * Some foreign-key constraints (e.g. ON DELETE RESTRICT) are enforced by Postgres itself
+ * rather than caught by Prisma's query engine first, so they don't come back as the
+ * "known" P2003/P2014 codes above — Prisma instead wraps the raw driver error as a
+ * PrismaClientUnknownRequestError (confirmed live: deleting a Client with an existing
+ * Reservation threw this with Postgres code 23001, "violates RESTRICT setting of foreign
+ * key constraint", and fell straight through to a bare 500).
+ */
+function isRestrictedForeignKeyError(err: Prisma.PrismaClientUnknownRequestError): boolean {
+  return /foreign key constraint|violates RESTRICT/i.test(err.message);
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ApiError) {
@@ -62,6 +74,14 @@ export function errorHandler(err: unknown, _req: Request, res: Response, _next: 
     if (mapped) {
       return res.status(mapped.status).json({ error: mapped.message, details: mapped.details ?? null });
     }
+  }
+
+  if (err instanceof Prisma.PrismaClientUnknownRequestError && isRestrictedForeignKeyError(err)) {
+    return res.status(409).json({
+      error:
+        "This record is still referenced by other data (e.g. a reservation, charge, or history entry) and cannot be deleted or changed this way.",
+      details: null,
+    });
   }
 
   console.error("Unhandled error:", err);
