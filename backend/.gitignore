@@ -1,0 +1,10 @@
+# The root .gitignore already covers this repo for git itself, but `railway up` builds its
+# upload by scanning the directory it's run from (backend/) — it doesn't necessarily walk up
+# to the repo root's .gitignore, so this nested copy exists specifically so Railway's CLI
+# excludes node_modules/dist when compressing this folder to deploy.
+node_modules/
+dist/
+.env
+*.log
+coverage/
+csv-export/
