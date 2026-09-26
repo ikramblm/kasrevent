@@ -16,6 +16,7 @@ class ServiceTableItem {
     required this.prixParPersonne,
     required this.nombreInvites,
     required this.total,
+    required this.employeIds,
   });
 
   final String id;
@@ -25,6 +26,7 @@ class ServiceTableItem {
   final num prixParPersonne;
   final int nombreInvites;
   final num total;
+  final List<String> employeIds;
 
   factory ServiceTableItem.fromJson(Map<String, dynamic> json) => ServiceTableItem(
         id: json['id'] as String,
@@ -34,5 +36,6 @@ class ServiceTableItem {
         prixParPersonne: num.tryParse((json['prixParPersonne'] ?? 0).toString()) ?? 0,
         nombreInvites: json['nombreInvites'] as int? ?? 0,
         total: num.tryParse((json['total'] ?? 0).toString()) ?? 0,
+        employeIds: (json['employeIds'] as List?)?.map((e) => e as String).toList() ?? [],
       );
 }

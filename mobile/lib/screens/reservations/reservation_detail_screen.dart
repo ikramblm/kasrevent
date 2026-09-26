@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import '../../core/api_client.dart';
 import '../../core/pdf_helper.dart';
+import '../../models/employe.dart';
 import '../../models/invite.dart';
 import '../../models/reponse_invitation.dart';
 import '../../models/reservation.dart';
@@ -24,6 +25,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
   List<Invite> _invites = [];
   List<ServiceTableItem> _services = [];
   List<ReponseInvitation> _reponses = [];
+  List<Employe> _employees = [];
   bool _loading = true;
   bool _pdfBusy = false;
   String? _error;
@@ -56,6 +58,22 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
     } finally {
       if (mounted) setState(() => _loading = false);
     }
+    // Employés management is Admin-only server-side, so a Gérant/Utilisateur loading this
+    // screen would 403 on this call — fetched separately so it can't break the rest of the page.
+    try {
+      final res = await api.dio.get('/employes');
+      _employees = (res.data as List).map((e) => Employe.fromJson(e as Map<String, dynamic>)).toList();
+    } catch (_) {
+      _employees = [];
+    }
+    if (mounted) setState(() {});
+  }
+
+  String _employeName(String id) {
+    final match = _employees.where((e) => e.id == id);
+    if (match.isEmpty) return 'Employé';
+    final e = match.first;
+    return e.prenom != null && e.prenom!.isNotEmpty ? '${e.nom} ${e.prenom}' : e.nom;
   }
 
   Future<void> _shareFacture() async {
@@ -90,6 +108,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
   Future<void> _addServiceTable() async {
     String type = 'BUFFET';
     String? traiteurId;
+    final selectedEmployeeIds = <String>{};
     final prixCtrl = TextEditingController();
     final traiteurs = await context
         .read<ApiClient>()
@@ -128,6 +147,30 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                 keyboardType: TextInputType.number,
                 decoration: const InputDecoration(labelText: 'Prix par personne (DA)'),
               ),
+              if (_employees.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Text('Employés assignés', style: TextStyle(fontWeight: FontWeight.w600)),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: _employees.map((e) {
+                    final selected = selectedEmployeeIds.contains(e.id);
+                    final label = e.prenom != null && e.prenom!.isNotEmpty ? '${e.nom} ${e.prenom}' : e.nom;
+                    return FilterChip(
+                      label: Text(label),
+                      selected: selected,
+                      onSelected: (v) => setSheetState(() {
+                        if (v) {
+                          selectedEmployeeIds.add(e.id);
+                        } else {
+                          selectedEmployeeIds.remove(e.id);
+                        }
+                      }),
+                    );
+                  }).toList(),
+                ),
+              ],
               const SizedBox(height: 16),
               SizedBox(
                 width: double.infinity,
@@ -147,6 +190,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
         'typeService': type,
         if (traiteurId != null) 'traiteurId': traiteurId!,
         'prixParPersonne': num.tryParse(prixCtrl.text) ?? 0,
+        if (selectedEmployeeIds.isNotEmpty) 'employeIds': selectedEmployeeIds.toList(),
       });
       _load();
     } catch (e) {
@@ -400,7 +444,11 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
                 margin: const EdgeInsets.symmetric(vertical: 4),
                 child: ListTile(
                   title: Text('${typeServiceLabel(service.typeService)}${service.traiteurNom != null ? " — ${service.traiteurNom}" : ""}'),
-                  subtitle: Text('${service.nombreInvites} invités × ${_money.format(service.prixParPersonne)} DA'),
+                  subtitle: Text(
+                    '${service.nombreInvites} invités × ${_money.format(service.prixParPersonne)} DA'
+                    '${service.employeIds.isNotEmpty ? "\nÉquipe: ${service.employeIds.map(_employeName).join(", ")}" : ""}',
+                  ),
+                  isThreeLine: service.employeIds.isNotEmpty,
                   trailing: Text('${_money.format(service.total)} DA', style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
