@@ -1,4 +1,5 @@
 import type { NextFunction, Request, Response } from "express";
+import { Prisma } from "@prisma/client";
 
 export class ApiError extends Error {
   status: number;
@@ -27,10 +28,40 @@ export class ApiError extends Error {
   }
 }
 
+/**
+ * Maps Prisma's known request errors to clean, specific HTTP responses instead of an
+ * opaque 500 — e.g. deleting a Client that still has Reservations, or creating a User
+ * with an email that's already taken, previously surfaced as "Internal server error"
+ * with no indication of what actually went wrong (found during the functional audit).
+ */
+function mapPrismaError(err: Prisma.PrismaClientKnownRequestError): ApiError | null {
+  const target = Array.isArray(err.meta?.target) ? (err.meta!.target as string[]).join(", ") : err.meta?.target;
+  switch (err.code) {
+    case "P2002":
+      return ApiError.conflict(`A record with this ${target ?? "value"} already exists.`);
+    case "P2003":
+    case "P2014":
+      return ApiError.conflict(
+        "This record is still referenced by other data (e.g. a reservation, charge, or history entry) and cannot be deleted or changed this way."
+      );
+    case "P2025":
+      return ApiError.notFound("Record not found.");
+    default:
+      return null;
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function errorHandler(err: unknown, _req: Request, res: Response, _next: NextFunction) {
   if (err instanceof ApiError) {
     return res.status(err.status).json({ error: err.message, details: err.details ?? null });
+  }
+
+  if (err instanceof Prisma.PrismaClientKnownRequestError) {
+    const mapped = mapPrismaError(err);
+    if (mapped) {
+      return res.status(mapped.status).json({ error: mapped.message, details: mapped.details ?? null });
+    }
   }
 
   console.error("Unhandled error:", err);

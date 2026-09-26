@@ -4,7 +4,16 @@ import '../core/api_client.dart';
 import 'app_scaffold.dart';
 import 'async_view.dart';
 
-enum CrudFieldType { text, number, email, tel, url, select }
+enum CrudFieldType { text, number, email, tel, url, select, password }
+
+/// Prepends `https://` when the user typed a bare domain/path (e.g. a Google Maps link
+/// copied without its scheme) instead of letting the server's stricter `.url()` validation
+/// reject it with no visible explanation.
+String normalizeUrl(String value) {
+  final trimmed = value.trim();
+  if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) return trimmed;
+  return 'https://$trimmed';
+}
 
 class CrudField {
   const CrudField({required this.name, required this.label, this.type = CrudFieldType.text, this.options, this.required = false});
@@ -95,7 +104,16 @@ class _SimpleCrudScreenState<T> extends State<SimpleCrudScreen<T>> {
       for (final f in widget.fields) {
         final v = values[f.name];
         if (v == null || (v is String && v.isEmpty)) continue;
-        payload[f.name] = f.type == CrudFieldType.number ? num.tryParse(v.toString()) : v;
+        if (f.type == CrudFieldType.number) {
+          payload[f.name] = num.tryParse(v.toString());
+        } else if (f.type == CrudFieldType.url) {
+          // A user typing "maps.google.com/xyz" without a scheme previously failed
+          // server-side validation with no visible reason (the reported "Salle add
+          // doesn't work" bug) — normalize instead of silently rejecting.
+          payload[f.name] = normalizeUrl(v.toString());
+        } else {
+          payload[f.name] = v;
+        }
       }
       await api.dio.post(widget.endpoint, data: payload);
       _reload();
@@ -200,9 +218,23 @@ class _AddItemSheetState extends State<_AddItemSheet> {
         return TextInputType.phone;
       case CrudFieldType.url:
         return TextInputType.url;
+      case CrudFieldType.password:
+        return TextInputType.visiblePassword;
       default:
         return TextInputType.text;
     }
+  }
+
+  /// Client-side validation so obviously-invalid input never reaches the server at all —
+  /// previously only "required" was checked, so a too-short password or a malformed URL
+  /// silently failed server-side with no explanation the user could act on.
+  String? _validate(CrudField field, String? value) {
+    final v = value?.trim() ?? '';
+    if (field.required && v.isEmpty) return 'Requis';
+    if (v.isEmpty) return null;
+    if (field.type == CrudFieldType.password && v.length < 8) return 'Minimum 8 caractères';
+    if (field.type == CrudFieldType.email && !v.contains('@')) return 'Email invalide';
+    return null;
   }
 
   @override
@@ -237,8 +269,9 @@ class _AddItemSheetState extends State<_AddItemSheet> {
                   TextFormField(
                     decoration: InputDecoration(labelText: field.label),
                     keyboardType: _keyboardType(field.type),
+                    obscureText: field.type == CrudFieldType.password,
                     onChanged: (v) => widget.values[field.name] = v,
-                    validator: field.required ? (v) => (v == null || v.isEmpty) ? 'Requis' : null : null,
+                    validator: (v) => _validate(field, v),
                   ),
                 const SizedBox(height: 12),
               ],

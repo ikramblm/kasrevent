@@ -14,7 +14,7 @@ const createSchema = z.object({
   tarif: z.number().nonnegative().optional(),
   equipementsInclus: z.array(z.string()).optional(),
   photo: z.string().optional(),
-  utilisateurId: z.string().uuid().optional()
+  utilisateurId: z.string().min(1).optional()
 });
 
 const updateSchema = createSchema.partial();
@@ -28,7 +28,7 @@ const router = crudRouter(prisma.salle, {
 const availabilityQuerySchema = z.object({
   dateDebut: z.coerce.date(),
   dateFin: z.coerce.date(),
-  excludeReservationId: z.string().uuid().optional()
+  excludeReservationId: z.string().min(1).optional()
 });
 
 /**

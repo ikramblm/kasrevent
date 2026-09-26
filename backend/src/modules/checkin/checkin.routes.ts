@@ -9,7 +9,7 @@ import { computeAccessStatus } from "./access-window";
 const router = Router();
 router.use(authenticate);
 
-const scanSchema = z.object({ token: z.string().uuid() });
+const scanSchema = z.object({ token: z.string().min(1) });
 
 /**
  * Reproduces the QR check-in flow:

@@ -34,10 +34,29 @@ class ApiClient {
 
 /// Extracts a human-readable message from a failed API call, falling back to a
 /// generic message when the backend didn't send a structured `{ error }` body.
+///
+/// Also unpacks Zod's `details.fieldErrors` (e.g. `{"lienLocalisation":["Invalid url"]}`)
+/// so a generic "Validation failed" turns into something the user can actually act on —
+/// previously this detail was silently dropped, which is why a bad URL/short password
+/// looked like the form "did nothing" (found during the functional audit).
 String apiErrorMessage(Object error, {String fallback = "Une erreur est survenue."}) {
   if (error is DioException) {
     final data = error.response?.data;
-    if (data is Map && data['error'] is String) return data['error'] as String;
+    if (data is Map) {
+      final baseMessage = data['error'] is String ? data['error'] as String : fallback;
+      final details = data['details'];
+      if (details is Map && details['fieldErrors'] is Map) {
+        final fieldErrors = details['fieldErrors'] as Map;
+        final parts = <String>[];
+        fieldErrors.forEach((field, messages) {
+          if (messages is List && messages.isNotEmpty) {
+            parts.add('$field: ${messages.join(", ")}');
+          }
+        });
+        if (parts.isNotEmpty) return '$baseMessage — ${parts.join(" · ")}';
+      }
+      return baseMessage;
+    }
   }
   return fallback;
 }

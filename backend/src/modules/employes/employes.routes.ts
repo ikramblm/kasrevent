@@ -4,7 +4,7 @@ import { authenticate, authorize } from "../../middleware/auth";
 import { validateBody } from "../../middleware/validate";
 import { asyncHandler, ApiError } from "../../middleware/errors";
 import { createEmployeSchema } from "./employes.schemas";
-import { isMonthlyPayrollDue } from "./payroll";
+import { runMonthlyPayroll } from "./payroll";
 
 const router = Router();
 // Employés management is Admin-only, mirroring the "Employés" menu view's role gate.
@@ -57,35 +57,14 @@ router.delete(
 );
 
 /**
- * Reproduces the "Paie mensuelle - 1" bot (Ajouter Paie Mensuelle + Enregistrer la date de
- * paiement, chained): for every Mensuelle-paid employee whose `jourDePaie` is today and who
- * hasn't already been paid this month, add `paieMensuelle` to `montantAPayer` and stamp
- * `derniereDatePaie`. Since the original app's actual Bot trigger/schedule is not in the
- * export (see docs/APP_MIGRATION_STATUS.md), this is exposed as an Admin-triggered endpoint
- * rather than an automatic daily cron — wire it to a scheduler if daily automation is wanted.
+ * Manual trigger for the same monthly-payroll logic the daily cron runs automatically
+ * (see index.ts) — kept as an Admin-callable endpoint too, e.g. to run it immediately
+ * without waiting for the next scheduled tick, or to verify it worked.
  */
 router.post(
   "/run-monthly-payroll",
   asyncHandler(async (_req, res) => {
-    const today = new Date();
-    const employes = await prisma.employe.findMany({ where: { typePaie: "MENSUELLE" } });
-
-    const due = employes.filter((e) =>
-      isMonthlyPayrollDue({ jourDePaie: e.jourDePaie, derniereDatePaie: e.derniereDatePaie, today })
-    );
-
-    const updated = await prisma.$transaction(
-      due.map((e) =>
-        prisma.employe.update({
-          where: { id: e.id },
-          data: {
-            montantAPayer: { increment: e.paieMensuelle ?? 0 },
-            derniereDatePaie: today
-          }
-        })
-      )
-    );
-
+    const updated = await runMonthlyPayroll();
     res.json({ paidCount: updated.length, employees: updated });
   })
 );

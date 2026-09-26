@@ -11,7 +11,7 @@ const createSchema = z.object({
   tarifs: z.number().nonnegative().optional(),
   photo: z.string().optional(),
   siteWeb: z.string().url().optional(),
-  utilisateurId: z.string().uuid().optional()
+  utilisateurId: z.string().min(1).optional()
 });
 
 export default crudRouter(prisma.traiteur, {

@@ -8,6 +8,7 @@ import '../models/user.dart';
 import '../providers/auth_provider.dart';
 import '../routes.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/kpi_bar_chart.dart';
 import '../widgets/kpi_card.dart';
 import '../widgets/status_badge.dart';
 
@@ -82,6 +83,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   );
                 },
               ),
+            if (_kpisFuture != null) ...[
+              const SizedBox(height: 16),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(12, 16, 16, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Répartition financière', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 12),
+                      FutureBuilder<DashboardKpis>(
+                        future: _kpisFuture,
+                        builder: (context, snapshot) {
+                          if (!snapshot.hasData) return const SizedBox(height: 220);
+                          return KpiBarChart(kpis: snapshot.data!);
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 16),
             Text('Prochain évènement', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),

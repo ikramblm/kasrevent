@@ -26,7 +26,7 @@ class UsersScreen extends StatelessWidget {
           required: true,
           options: [MapEntry('USER', 'Utilisateur'), MapEntry('GERANT', 'Gérant'), MapEntry('ADMIN', 'Admin')],
         ),
-        CrudField(name: 'password', label: 'Mot de passe temporaire (8+ car.)', required: true),
+        CrudField(name: 'password', label: 'Mot de passe temporaire (8+ car.)', type: CrudFieldType.password, required: true),
       ],
       itemBuilder: (context, u) => Card(
         margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),

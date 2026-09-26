@@ -7,7 +7,7 @@ const createSchema = z.object({
   type: z.enum(["FLEURS", "TAPIS", "CHAISES", "TABLES", "SCULPTURE"]),
   stockDisponible: z.number().int().nonnegative().optional(),
   prixLocation: z.number().nonnegative().optional(),
-  utilisateurId: z.string().uuid().optional()
+  utilisateurId: z.string().min(1).optional()
 });
 
 export default crudRouter(prisma.decoration, {

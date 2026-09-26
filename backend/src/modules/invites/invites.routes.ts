@@ -10,8 +10,8 @@ const router = Router();
 router.use(authenticate);
 
 const createSchema = z.object({
-  reservationId: z.string().uuid(),
-  clientId: z.string().uuid().optional(),
+  reservationId: z.string().min(1),
+  clientId: z.string().min(1).optional(),
   nom: z.string().min(1),
   prenom: z.string().optional(),
   telephone: z.string().optional(),

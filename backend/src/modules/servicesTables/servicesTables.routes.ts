@@ -9,13 +9,13 @@ const router = Router();
 router.use(authenticate);
 
 const createSchema = z.object({
-  reservationId: z.string().uuid(),
+  reservationId: z.string().min(1),
   typeService: z.enum(["AUCUN_SERVICE", "BUFFET", "SERVICE_A_TABLE"]).default("AUCUN_SERVICE"),
-  traiteurId: z.string().uuid().optional(),
+  traiteurId: z.string().min(1).optional(),
   menuPropose: z.string().optional(),
   prixParPersonne: z.number().nonnegative().default(0),
   nombreInvites: z.number().int().nonnegative().optional(),
-  employeIds: z.array(z.string().uuid()).default([])
+  employeIds: z.array(z.string().min(1)).default([])
 });
 
 router.get(

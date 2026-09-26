@@ -22,6 +22,11 @@ const DEBT_INCREASING_TYPES = new Set(["ACHAT", "APPROVISIONNEMENT", "INVESTISSE
  *     appends a row to `Historique de Paie` (reproducing the "Action for Creation de Row"
  *     ADD_RECORD_TO action).
  */
+/** Never let a debt/amount-owed balance go negative from a payment larger than what's owed. */
+export function clamp(current: Prisma.Decimal | number, delta: number): number {
+  return Math.max(Number(current) - delta, 0);
+}
+
 export async function createChargeWithSideEffects(input: ChargeInput, utilisateurId: string) {
   const dettesNouvelles = input.montantTotal - input.montantPaye;
 
@@ -36,16 +41,20 @@ export async function createChargeWithSideEffects(input: ChargeInput, utilisateu
     }
 
     if (input.fournisseurId && input.type === "PAIEMENT_DETTES_FOURNISSEURS") {
+      const fournisseur = await tx.fournisseur.findUnique({ where: { id: input.fournisseurId } });
+      if (!fournisseur) throw ApiError.notFound("Fournisseur not found");
       await tx.fournisseur.update({
         where: { id: input.fournisseurId },
-        data: { dettes: { decrement: input.montantPaye } }
+        data: { dettes: clamp(fournisseur.dettes, input.montantPaye) }
       });
     }
 
     if (input.traiteurId && input.type === "PAIEMENT_DETTES_TRAITEURS") {
+      const traiteur = await tx.traiteur.findUnique({ where: { id: input.traiteurId } });
+      if (!traiteur) throw ApiError.notFound("Traiteur not found");
       await tx.traiteur.update({
         where: { id: input.traiteurId },
-        data: { dettes: { decrement: input.montantPaye } }
+        data: { dettes: clamp(traiteur.dettes, input.montantPaye) }
       });
     }
 
@@ -55,7 +64,7 @@ export async function createChargeWithSideEffects(input: ChargeInput, utilisateu
 
       await tx.employe.update({
         where: { id: input.employeId },
-        data: { montantAPayer: { decrement: input.montantPaye } }
+        data: { montantAPayer: clamp(employe.montantAPayer, input.montantPaye) }
       });
 
       await tx.historiquePaie.create({

@@ -14,9 +14,9 @@ export const typeChargeEnum = z.enum([
 
 export const createChargeSchema = z.object({
   type: typeChargeEnum,
-  fournisseurId: z.string().uuid().optional(),
-  traiteurId: z.string().uuid().optional(),
-  employeId: z.string().uuid().optional(),
+  fournisseurId: z.string().min(1).optional(),
+  traiteurId: z.string().min(1).optional(),
+  employeId: z.string().min(1).optional(),
   moisPaye: z.string().optional(),
   montantTotal: z.number().nonnegative().default(0),
   methodePaiement: z.enum(["ESPECE", "CHEQUE", "VIREMENT", "AUTRE"]).default("ESPECE"),

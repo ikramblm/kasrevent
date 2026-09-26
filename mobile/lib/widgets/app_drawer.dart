@@ -39,6 +39,7 @@ const _sections = [
     _NavItem('/employes', 'Employés', Icons.badge_outlined, roles: [Role.admin]),
     _NavItem('/historique-paie', 'Historique de paie', Icons.history, roles: [Role.admin, Role.gerant]),
     _NavItem('/utilisateurs', 'Utilisateurs', Icons.admin_panel_settings_outlined, roles: [Role.admin]),
+    _NavItem('/admin-config', 'Configuration', Icons.settings_outlined, roles: [Role.admin]),
   ]),
 ];
 

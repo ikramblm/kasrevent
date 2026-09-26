@@ -4,12 +4,12 @@ export const typeEvenementEnum = z.enum(["MARIAGE", "SEMINAIRE", "ANNIVERSAIRE",
 export const statutReservationEnum = z.enum(["EN_ATTENTE", "CONFIRMEE", "ANNULEE", "CLOTURE"]);
 
 export const createReservationSchema = z.object({
-  clientId: z.string().uuid(),
+  clientId: z.string().min(1),
   dateDebut: z.coerce.date(),
   dateFin: z.coerce.date(),
   typeEvenement: typeEvenementEnum.default("AUTRE"),
   nombreInvites: z.number().int().nonnegative().default(0),
-  salleId: z.string().uuid().optional(),
+  salleId: z.string().min(1).optional(),
   note: z.string().optional(),
   confiscationPolicy: z.boolean().default(false),
   totalAPayer: z.number().nonnegative().default(0),

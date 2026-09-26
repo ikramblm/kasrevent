@@ -9,9 +9,9 @@ const router = Router();
 router.use(authenticate);
 
 const createSchema = z.object({
-  reservationId: z.string().uuid(),
-  inviteId: z.string().uuid().optional(),
-  clientId: z.string().uuid().optional(),
+  reservationId: z.string().min(1),
+  inviteId: z.string().min(1).optional(),
+  clientId: z.string().min(1).optional(),
   numeroTelephone: z.string().optional(),
   photoTelephone: z.string().optional()
 });

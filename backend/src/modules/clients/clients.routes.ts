@@ -8,7 +8,7 @@ const createSchema = z.object({
   telephone: z.string().optional(),
   email: z.string().email().optional(),
   adresse: z.string().optional(),
-  utilisateurId: z.string().uuid().optional()
+  utilisateurId: z.string().min(1).optional()
 });
 
 const updateSchema = createSchema.partial();
