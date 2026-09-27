@@ -13,18 +13,20 @@ import type { Prisma } from "@prisma/client";
  * enforced here on the server (the source app only enforced it client-side at save time).
  */
 export async function assertRoomAvailable(params: {
+  businessId: string;
   salleId: string;
   dateDebut: Date;
   dateFin: Date;
   excludeReservationId?: string;
 }) {
-  const { salleId, dateDebut, dateFin, excludeReservationId } = params;
+  const { businessId, salleId, dateDebut, dateFin, excludeReservationId } = params;
   if (dateFin < dateDebut) {
     throw ApiError.badRequest("Date Fin must be on or after Date Début");
   }
 
   const conflict = await prisma.reservation.findFirst({
     where: {
+      businessId,
       salleId,
       id: excludeReservationId ? { not: excludeReservationId } : undefined,
       statut: { not: "ANNULEE" },
@@ -54,9 +56,9 @@ export function withComputed<T extends { totalAPayer: Prisma.Decimal | number; a
  * Reproduces the "Clôturer" action: SET Statut="Clôturé", Reste a Payer=0,
  * Avance Versée=Total a Payer — only allowed once `Date Début <= TODAY()`.
  */
-export async function closeReservation(id: string) {
+export async function closeReservation(id: string, businessId: string) {
   const reservation = await prisma.reservation.findUnique({ where: { id } });
-  if (!reservation) throw ApiError.notFound("Reservation not found");
+  if (!reservation || reservation.businessId !== businessId) throw ApiError.notFound("Reservation not found");
   if (reservation.dateDebut > new Date()) {
     throw ApiError.badRequest("Cannot close a reservation before its start date");
   }
@@ -71,9 +73,9 @@ export async function closeReservation(id: string) {
  * when Statut is Clôturé or Annulée, then optionally the "Archiver et supprimer" composite
  * (Archiv + Delete) via `alsoDelete`.
  */
-export async function archiveReservation(id: string, alsoDelete: boolean) {
+export async function archiveReservation(id: string, alsoDelete: boolean, businessId: string) {
   const reservation = await prisma.reservation.findUnique({ where: { id }, include: { client: true, salle: true } });
-  if (!reservation) throw ApiError.notFound("Reservation not found");
+  if (!reservation || reservation.businessId !== businessId) throw ApiError.notFound("Reservation not found");
   if (!["CLOTURE", "ANNULEE"].includes(reservation.statut)) {
     throw ApiError.badRequest("Only a Clôturé or Annulée reservation can be archived");
   }
@@ -83,6 +85,7 @@ export async function archiveReservation(id: string, alsoDelete: boolean) {
 
   const archive = await prisma.archiveReservation.create({
     data: {
+      businessId,
       reservationId: reservation.id,
       clientNom: reservation.client.nom,
       dateDebut: reservation.dateDebut,

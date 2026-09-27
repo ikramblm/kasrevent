@@ -27,13 +27,17 @@ router.post(
       where: { qrCodeToken: req.body.token },
       include: { reservation: true }
     });
-    if (!invite) throw ApiError.notFound("QR code not recognized");
+    // qrCodeToken stays globally unique across all businesses (it's just a random uuid),
+    // so confirm the invite actually belongs to the scanning staff's own business — staff
+    // must not be able to check in a guest from another business even if a token leaked.
+    if (!invite || invite.businessId !== req.user!.businessId) throw ApiError.notFound("QR code not recognized");
 
     const now = new Date();
     const statutAcces = computeAccessStatus({ dateDebut: invite.reservation.dateDebut, dateFin: invite.reservation.dateFin, now });
 
     const accesInvite = await prisma.accesInvite.create({
       data: {
+        businessId: req.user!.businessId!,
         reservationId: invite.reservationId,
         inviteId: invite.id,
         statutAcces,
@@ -56,6 +60,7 @@ router.post(
     if (invite.reservation.confiscationPolicy) {
       confiscation = await prisma.confiscationTelephone.create({
         data: {
+          businessId: req.user!.businessId!,
           reservationId: invite.reservationId,
           inviteId: invite.id,
           clientId: invite.clientId,
@@ -79,7 +84,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { reservationId } = req.query as { reservationId?: string };
     const log = await prisma.accesInvite.findMany({
-      where: { reservationId },
+      where: { businessId: req.user!.businessId, reservationId },
       include: { invite: true },
       orderBy: { heureEntree: "desc" }
     });

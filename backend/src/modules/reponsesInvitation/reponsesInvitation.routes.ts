@@ -11,7 +11,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { reservationId } = req.query as { reservationId?: string };
     const reponses = await prisma.reponseInvitation.findMany({
-      where: { reservationId },
+      where: { businessId: req.user!.businessId, reservationId },
       orderBy: { createdAt: "desc" }
     });
     res.json(reponses);
@@ -26,11 +26,12 @@ router.post(
   "/:id/confirmer",
   asyncHandler(async (req, res) => {
     const reponse = await prisma.reponseInvitation.findUnique({ where: { id: req.params.id } });
-    if (!reponse) throw ApiError.notFound("Reponse not found");
+    if (!reponse || reponse.businessId !== req.user!.businessId) throw ApiError.notFound("Reponse not found");
 
     const [nom, ...rest] = reponse.nomPrenom.split(" ");
     const invite = await prisma.invite.create({
       data: {
+        businessId: req.user!.businessId!,
         reservationId: reponse.reservationId,
         nom: nom || reponse.nomPrenom,
         prenom: rest.join(" ") || undefined,

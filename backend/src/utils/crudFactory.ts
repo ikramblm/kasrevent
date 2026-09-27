@@ -35,8 +35,12 @@ export function crudRouter(delegate: Delegate, options: CrudOptions): Router {
   router.get(
     "/",
     authenticate,
-    asyncHandler(async (_req, res) => {
-      const items = await delegate.findMany({ orderBy: options.orderBy, include: options.include });
+    asyncHandler(async (req, res) => {
+      const items = await delegate.findMany({
+        where: { businessId: req.user!.businessId },
+        orderBy: options.orderBy,
+        include: options.include
+      });
       res.json(items);
     })
   );
@@ -46,7 +50,9 @@ export function crudRouter(delegate: Delegate, options: CrudOptions): Router {
     authenticate,
     asyncHandler(async (req, res) => {
       const item = await delegate.findUnique({ where: { id: req.params.id }, include: options.include });
-      if (!item) throw ApiError.notFound();
+      // 404 (not 403) for a row that exists but belongs to another business, so a caller
+      // can't distinguish "doesn't exist" from "exists in someone else's tenant".
+      if (!item || item.businessId !== req.user!.businessId) throw ApiError.notFound();
       res.json(item);
     })
   );
@@ -56,7 +62,8 @@ export function crudRouter(delegate: Delegate, options: CrudOptions): Router {
     ...writeGuard,
     validateBody(options.createSchema),
     asyncHandler(async (req, res) => {
-      const item = await delegate.create({ data: req.body });
+      // businessId stamped after the spread so a client can't override it via the body.
+      const item = await delegate.create({ data: { ...req.body, businessId: req.user!.businessId } });
       res.status(201).json(item);
     })
   );
@@ -66,6 +73,8 @@ export function crudRouter(delegate: Delegate, options: CrudOptions): Router {
     ...writeGuard,
     validateBody(options.updateSchema),
     asyncHandler(async (req, res) => {
+      const existing = await delegate.findUnique({ where: { id: req.params.id } });
+      if (!existing || existing.businessId !== req.user!.businessId) throw ApiError.notFound();
       const item = await delegate.update({ where: { id: req.params.id }, data: req.body });
       res.json(item);
     })
@@ -75,6 +84,8 @@ export function crudRouter(delegate: Delegate, options: CrudOptions): Router {
     "/:id",
     ...writeGuard,
     asyncHandler(async (req, res) => {
+      const existing = await delegate.findUnique({ where: { id: req.params.id } });
+      if (!existing || existing.businessId !== req.user!.businessId) throw ApiError.notFound();
       await delegate.delete({ where: { id: req.params.id } });
       res.status(204).send();
     })

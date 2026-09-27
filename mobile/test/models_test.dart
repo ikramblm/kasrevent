@@ -18,7 +18,8 @@ void main() {
   });
 
   group('Role', () {
-    test('maps ADMIN/GERANT/USER correctly', () {
+    test('maps SUPERADMIN/ADMIN/GERANT/USER correctly', () {
+      expect(roleFromJson('SUPERADMIN'), Role.superadmin);
       expect(roleFromJson('ADMIN'), Role.admin);
       expect(roleFromJson('GERANT'), Role.gerant);
       expect(roleFromJson('USER'), Role.user);

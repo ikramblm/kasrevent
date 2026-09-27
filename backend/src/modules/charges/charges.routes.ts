@@ -15,7 +15,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { type } = req.query as { type?: string };
     const charges = await prisma.charge.findMany({
-      where: { type: type as any },
+      where: { businessId: req.user!.businessId, type: type as any },
       include: { fournisseur: true, traiteur: true, employe: true },
       orderBy: { dateHeure: "desc" }
     });
@@ -27,7 +27,7 @@ router.post(
   "/",
   validateBody(createChargeSchema),
   asyncHandler(async (req, res) => {
-    const charge = await createChargeWithSideEffects(req.body, req.user!.id);
+    const charge = await createChargeWithSideEffects(req.body, req.user!.id, req.user!.businessId!);
     res.status(201).json(charge);
   })
 );

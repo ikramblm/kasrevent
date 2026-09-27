@@ -8,18 +8,20 @@ import { asyncHandler, ApiError } from "../../middleware/errors";
 
 const router = Router();
 
-const createSchema = z.object({
+// An Admin manages their own business's staff only — GERANT/USER, never another ADMIN
+// or SUPERADMIN (that tier is created exclusively via the businesses module).
+export const createSchema = z.object({
   nom: z.string().min(1),
   email: z.string().email(),
   telephone: z.string().optional(),
-  role: z.enum(["ADMIN", "GERANT", "USER"]).default("USER"),
+  role: z.enum(["GERANT", "USER"]).default("USER"),
   password: z.string().min(8, "Password must be at least 8 characters")
 });
 
-const updateSchema = z.object({
+export const updateSchema = z.object({
   nom: z.string().min(1).optional(),
   telephone: z.string().optional(),
-  role: z.enum(["ADMIN", "GERANT", "USER"]).optional(),
+  role: z.enum(["GERANT", "USER"]).optional(),
   password: z.string().min(8).optional()
 });
 
@@ -33,8 +35,11 @@ router.use(authenticate, authorize("ADMIN"));
 
 router.get(
   "/",
-  asyncHandler(async (_req, res) => {
-    const users = await prisma.user.findMany({ orderBy: { nom: "asc" } });
+  asyncHandler(async (req, res) => {
+    const users = await prisma.user.findMany({
+      where: { businessId: req.user!.businessId },
+      orderBy: { nom: "asc" }
+    });
     res.json(users.map(toPublicUser));
   })
 );
@@ -45,15 +50,26 @@ router.post(
   asyncHandler(async (req, res) => {
     const { password, ...rest } = req.body as z.infer<typeof createSchema>;
     const passwordHash = await hashPassword(password);
-    const user = await prisma.user.create({ data: { ...rest, passwordHash } });
+    const user = await prisma.user.create({
+      data: { ...rest, passwordHash, businessId: req.user!.businessId }
+    });
     res.status(201).json(toPublicUser(user));
   })
 );
+
+// Fetches the target user and 404s if it's not one of the caller's own business's
+// accounts — previously any Admin could read/edit/delete any user id in the system.
+async function findOwnBusinessUser(req: import("express").Request) {
+  const user = await prisma.user.findUnique({ where: { id: req.params.id } });
+  if (!user || user.businessId !== req.user!.businessId) throw ApiError.notFound("User not found");
+  return user;
+}
 
 router.patch(
   "/:id",
   validateBody(updateSchema),
   asyncHandler(async (req, res) => {
+    await findOwnBusinessUser(req);
     const { password, ...rest } = req.body as z.infer<typeof updateSchema>;
     const data: Record<string, unknown> = { ...rest };
     if (password) data.passwordHash = await hashPassword(password);
@@ -68,6 +84,7 @@ router.delete(
     if (req.params.id === req.user!.id) {
       throw ApiError.badRequest("You cannot delete your own account");
     }
+    await findOwnBusinessUser(req);
     await prisma.user.delete({ where: { id: req.params.id } });
     res.status(204).send();
   })

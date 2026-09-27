@@ -23,7 +23,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { reservationId } = req.query as { reservationId?: string };
     const invites = await prisma.invite.findMany({
-      where: { reservationId },
+      where: { businessId: req.user!.businessId, reservationId },
       orderBy: { createdAt: "desc" }
     });
     res.json(invites);
@@ -34,9 +34,15 @@ router.post(
   "/",
   validateBody(createSchema),
   asyncHandler(async (req, res) => {
+    const reservation = await prisma.reservation.findUnique({ where: { id: req.body.reservationId } });
+    if (!reservation || reservation.businessId !== req.user!.businessId) {
+      throw ApiError.badRequest("Invalid reservationId");
+    }
     // `qrCodeToken` defaults to a fresh random uuid() at the DB layer — this reproduces
     // `Invités.QR Code`'s auto-generated, per-guest scannable identifier.
-    const invite = await prisma.invite.create({ data: { ...req.body, utilisateurId: req.user!.id } });
+    const invite = await prisma.invite.create({
+      data: { ...req.body, utilisateurId: req.user!.id, businessId: req.user!.businessId! }
+    });
     res.status(201).json(invite);
   })
 );
@@ -46,7 +52,7 @@ router.get(
   "/:id/qrcode",
   asyncHandler(async (req, res) => {
     const invite = await prisma.invite.findUnique({ where: { id: req.params.id } });
-    if (!invite) throw ApiError.notFound("Guest not found");
+    if (!invite || invite.businessId !== req.user!.businessId) throw ApiError.notFound("Guest not found");
     const dataUrl = await generateQrDataUrl(invite.qrCodeToken);
     res.json({ qrCodeDataUrl: dataUrl });
   })
@@ -56,6 +62,8 @@ router.patch(
   "/:id",
   validateBody(createSchema.partial()),
   asyncHandler(async (req, res) => {
+    const existing = await prisma.invite.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.businessId !== req.user!.businessId) throw ApiError.notFound("Guest not found");
     const invite = await prisma.invite.update({ where: { id: req.params.id }, data: req.body });
     res.json(invite);
   })
@@ -64,6 +72,8 @@ router.patch(
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {
+    const existing = await prisma.invite.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.businessId !== req.user!.businessId) throw ApiError.notFound("Guest not found");
     await prisma.invite.delete({ where: { id: req.params.id } });
     res.status(204).send();
   })

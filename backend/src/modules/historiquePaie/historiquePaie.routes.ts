@@ -14,7 +14,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { employeId } = req.query as { employeId?: string };
     const rows = await prisma.historiquePaie.findMany({
-      where: { employeId },
+      where: { businessId: req.user!.businessId, employeId },
       include: { employe: true },
       orderBy: { date: "desc" }
     });

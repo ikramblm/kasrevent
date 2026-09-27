@@ -22,7 +22,10 @@ router.get(
   "/",
   asyncHandler(async (req, res) => {
     const { reservationId } = req.query as { reservationId?: string };
-    const items = await prisma.serviceTable.findMany({ where: { reservationId }, orderBy: { date: "desc" } });
+    const items = await prisma.serviceTable.findMany({
+      where: { businessId: req.user!.businessId, reservationId },
+      orderBy: { date: "desc" }
+    });
     res.json(items);
   })
 );
@@ -41,21 +44,31 @@ router.post(
   validateBody(createSchema),
   asyncHandler(async (req, res) => {
     const input = req.body as z.infer<typeof createSchema>;
+    const businessId = req.user!.businessId!;
     const reservation = await prisma.reservation.findUnique({ where: { id: input.reservationId } });
-    if (!reservation) throw ApiError.notFound("Reservation not found");
+    if (!reservation || reservation.businessId !== businessId) throw ApiError.notFound("Reservation not found");
+    if (input.traiteurId) {
+      const traiteur = await prisma.traiteur.findUnique({ where: { id: input.traiteurId } });
+      if (!traiteur || traiteur.businessId !== businessId) throw ApiError.badRequest("Invalid traiteurId");
+    }
 
     const nombreInvites = input.nombreInvites ?? reservation.nombreInvites;
     const total = input.prixParPersonne * nombreInvites;
 
-    const dailyPaidEmployees = input.employeIds.length
-      ? await prisma.employe.findMany({
-          where: { id: { in: input.employeIds }, typePaie: "JOURNALIERE" }
-        })
+    // Scoped by businessId too — otherwise a crafted employeIds list could reach into
+    // another business's staff, increment their pay, and get stored as an assignment
+    // on a ServiceTable belonging to a different business entirely.
+    const assignedEmployees = input.employeIds.length
+      ? await prisma.employe.findMany({ where: { id: { in: input.employeIds }, businessId } })
       : [];
+    if (assignedEmployees.length !== input.employeIds.length) {
+      throw ApiError.badRequest("One or more employeIds are invalid");
+    }
+    const dailyPaidEmployees = assignedEmployees.filter((e) => e.typePaie === "JOURNALIERE");
 
     const [service] = await prisma.$transaction([
       prisma.serviceTable.create({
-        data: { ...input, nombreInvites, total, utilisateurId: req.user!.id }
+        data: { ...input, nombreInvites, total, utilisateurId: req.user!.id, businessId }
       }),
       prisma.reservation.update({
         where: { id: input.reservationId },

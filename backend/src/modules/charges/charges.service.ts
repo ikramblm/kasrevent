@@ -27,11 +27,27 @@ export function clamp(current: Prisma.Decimal | number, delta: number): number {
   return Math.max(Number(current) - delta, 0);
 }
 
-export async function createChargeWithSideEffects(input: ChargeInput, utilisateurId: string) {
+export async function createChargeWithSideEffects(input: ChargeInput, utilisateurId: string, businessId: string) {
   const dettesNouvelles = input.montantTotal - input.montantPaye;
 
   return prisma.$transaction(async (tx) => {
-    const charge = await tx.charge.create({ data: { ...input, utilisateurId } });
+    // Every referenced Fournisseur/Traiteur/Employé must belong to the caller's own
+    // business — without this check a charge could increment or clear another
+    // business's debt/payroll balances.
+    if (input.fournisseurId) {
+      const fournisseur = await tx.fournisseur.findUnique({ where: { id: input.fournisseurId } });
+      if (!fournisseur || fournisseur.businessId !== businessId) throw ApiError.badRequest("Invalid fournisseurId");
+    }
+    if (input.traiteurId) {
+      const traiteur = await tx.traiteur.findUnique({ where: { id: input.traiteurId } });
+      if (!traiteur || traiteur.businessId !== businessId) throw ApiError.badRequest("Invalid traiteurId");
+    }
+    if (input.employeId) {
+      const employe = await tx.employe.findUnique({ where: { id: input.employeId } });
+      if (!employe || employe.businessId !== businessId) throw ApiError.badRequest("Invalid employeId");
+    }
+
+    const charge = await tx.charge.create({ data: { ...input, utilisateurId, businessId } });
 
     if (input.fournisseurId && DEBT_INCREASING_TYPES.has(input.type)) {
       await tx.fournisseur.update({
@@ -69,6 +85,7 @@ export async function createChargeWithSideEffects(input: ChargeInput, utilisateu
 
       await tx.historiquePaie.create({
         data: {
+          businessId,
           employeId: input.employeId,
           moisPaye: input.moisPaye,
           date: charge.dateHeure,

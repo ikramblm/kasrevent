@@ -12,8 +12,11 @@ router.use(authenticate, authorize("ADMIN"));
 
 router.get(
   "/",
-  asyncHandler(async (_req, res) => {
-    const employes = await prisma.employe.findMany({ orderBy: { nom: "asc" } });
+  asyncHandler(async (req, res) => {
+    const employes = await prisma.employe.findMany({
+      where: { businessId: req.user!.businessId },
+      orderBy: { nom: "asc" }
+    });
     res.json(employes);
   })
 );
@@ -25,7 +28,7 @@ router.get(
       where: { id: req.params.id },
       include: { historiquePaie: { orderBy: { date: "desc" } } }
     });
-    if (!employe) throw ApiError.notFound("Employé not found");
+    if (!employe || employe.businessId !== req.user!.businessId) throw ApiError.notFound("Employé not found");
     res.json(employe);
   })
 );
@@ -34,7 +37,7 @@ router.post(
   "/",
   validateBody(createEmployeSchema),
   asyncHandler(async (req, res) => {
-    const employe = await prisma.employe.create({ data: req.body });
+    const employe = await prisma.employe.create({ data: { ...req.body, businessId: req.user!.businessId! } });
     res.status(201).json(employe);
   })
 );
@@ -43,6 +46,8 @@ router.patch(
   "/:id",
   validateBody(createEmployeSchema.partial()),
   asyncHandler(async (req, res) => {
+    const existing = await prisma.employe.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.businessId !== req.user!.businessId) throw ApiError.notFound("Employé not found");
     const employe = await prisma.employe.update({ where: { id: req.params.id }, data: req.body });
     res.json(employe);
   })
@@ -51,6 +56,8 @@ router.patch(
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {
+    const existing = await prisma.employe.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.businessId !== req.user!.businessId) throw ApiError.notFound("Employé not found");
     await prisma.employe.delete({ where: { id: req.params.id } });
     res.status(204).send();
   })
@@ -59,12 +66,13 @@ router.delete(
 /**
  * Manual trigger for the same monthly-payroll logic the daily cron runs automatically
  * (see index.ts) — kept as an Admin-callable endpoint too, e.g. to run it immediately
- * without waiting for the next scheduled tick, or to verify it worked.
+ * without waiting for the next scheduled tick, or to verify it worked. Scoped to the
+ * caller's own business, unlike the cron which processes every business in one pass.
  */
 router.post(
   "/run-monthly-payroll",
-  asyncHandler(async (_req, res) => {
-    const updated = await runMonthlyPayroll();
+  asyncHandler(async (req, res) => {
+    const updated = await runMonthlyPayroll(new Date(), req.user!.businessId!);
     res.json({ paidCount: updated.length, employees: updated });
   })
 );

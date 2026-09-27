@@ -14,6 +14,7 @@ import 'screens/employes_screen.dart';
 import 'screens/historique_paie_screen.dart';
 import 'screens/users_screen.dart';
 import 'screens/admin_config_screen.dart';
+import 'screens/businesses_screen.dart';
 
 const routeDashboard = '/';
 const routeReservations = '/reservations';
@@ -30,6 +31,7 @@ const routeEmployes = '/employes';
 const routeHistoriquePaie = '/historique-paie';
 const routeUtilisateurs = '/utilisateurs';
 const routeAdminConfig = '/admin-config';
+const routeBusinesses = '/businesses';
 
 Route<dynamic> generateAppRoute(RouteSettings settings) {
   Widget page;
@@ -75,6 +77,9 @@ Route<dynamic> generateAppRoute(RouteSettings settings) {
       break;
     case routeAdminConfig:
       page = const AdminConfigScreen();
+      break;
+    case routeBusinesses:
+      page = const BusinessesScreen();
       break;
     case routeDashboard:
     default:

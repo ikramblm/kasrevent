@@ -6,6 +6,7 @@ export interface AuthTokenPayload {
   sub: string;
   role: Role;
   email: string | null;
+  businessId: string | null;
 }
 
 export function signToken(payload: AuthTokenPayload): string {

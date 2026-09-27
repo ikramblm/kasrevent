@@ -7,6 +7,7 @@ import { env } from "./config/env";
 import { errorHandler, notFoundHandler } from "./middleware/errors";
 
 import authRoutes from "./modules/auth/auth.routes";
+import businessesRoutes from "./modules/businesses/businesses.routes";
 import usersRoutes from "./modules/users/users.routes";
 import clientsRoutes from "./modules/clients/clients.routes";
 import sallesRoutes from "./modules/salles/salles.routes";
@@ -43,6 +44,7 @@ export function createApp() {
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
 
   app.use("/api/auth", authRoutes);
+  app.use("/api/businesses", businessesRoutes);
   app.use("/api/users", usersRoutes);
   app.use("/api/clients", clientsRoutes);
   app.use("/api/salles", sallesRoutes);

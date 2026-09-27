@@ -51,6 +51,9 @@ class AppDrawer extends StatelessWidget {
   Widget build(BuildContext context) {
     final auth = context.watch<AuthProvider>();
     final role = auth.user?.role ?? Role.user;
+    // A Super Admin has no Business, so none of the normal sections apply — they only
+    // manage the businesses list itself.
+    final isSuperadmin = role == Role.superadmin;
 
     return Drawer(
       child: SafeArea(
@@ -68,32 +71,47 @@ class AppDrawer extends StatelessWidget {
             Expanded(
               child: ListView(
                 padding: EdgeInsets.zero,
-                children: [
-                  for (final section in _sections)
-                    if (section.items.any((i) => i.roles == null || i.roles!.contains(role))) ...[
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
-                        child: Text(
-                          section.title.toUpperCase(),
-                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500),
+                children: isSuperadmin
+                    ? [
+                        ListTile(
+                          leading: const Icon(Icons.business_outlined, size: 22),
+                          title: const Text('Entreprises'),
+                          selected: currentRoute == '/businesses',
+                          selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                          onTap: () {
+                            Navigator.of(context).pop();
+                            if (currentRoute != '/businesses') {
+                              Navigator.of(context).pushReplacementNamed('/businesses');
+                            }
+                          },
                         ),
-                      ),
-                      for (final item in section.items)
-                        if (item.roles == null || item.roles!.contains(role))
-                          ListTile(
-                            leading: Icon(item.icon, size: 22),
-                            title: Text(item.label),
-                            selected: currentRoute == item.route,
-                            selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
-                            onTap: () {
-                              Navigator.of(context).pop();
-                              if (currentRoute != item.route) {
-                                Navigator.of(context).pushReplacementNamed(item.route);
-                              }
-                            },
-                          ),
-                    ],
-                ],
+                      ]
+                    : [
+                        for (final section in _sections)
+                          if (section.items.any((i) => i.roles == null || i.roles!.contains(role))) ...[
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                              child: Text(
+                                section.title.toUpperCase(),
+                                style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.grey.shade500),
+                              ),
+                            ),
+                            for (final item in section.items)
+                              if (item.roles == null || item.roles!.contains(role))
+                                ListTile(
+                                  leading: Icon(item.icon, size: 22),
+                                  title: Text(item.label),
+                                  selected: currentRoute == item.route,
+                                  selectedTileColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.08),
+                                  onTap: () {
+                                    Navigator.of(context).pop();
+                                    if (currentRoute != item.route) {
+                                      Navigator.of(context).pushReplacementNamed(item.route);
+                                    }
+                                  },
+                                ),
+                          ],
+                      ],
               ),
             ),
             const Divider(height: 1),

@@ -27,6 +27,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { dateDebut, dateFin } = req.query as unknown as z.infer<typeof querySchema>;
     const dateRange = dateDebut && dateFin ? { gte: dateDebut, lte: dateFin } : undefined;
+    const businessId = req.user!.businessId!;
 
     const [
       allTimeAvance,
@@ -39,17 +40,20 @@ router.get(
       creanceAllTime,
       chargesSelect
     ] = await Promise.all([
-      prisma.reservation.aggregate({ _sum: { avanceVersee: true } }),
-      prisma.reservation.aggregate({ _sum: { totalAPayer: true } }),
-      prisma.charge.aggregate({ _sum: { montantPaye: true }, where: { type: { in: [...EXPENSE_TYPES] } } }),
-      prisma.charge.aggregate({ _sum: { montantPaye: true }, where: { type: { in: [...DEBT_PAYMENT_TYPES] } } }),
-      prisma.charge.aggregate({ _sum: { montantPaye: true }, where: { type: "INVESTISSEMENT" } }),
-      prisma.charge.aggregate({ _sum: { montantPaye: true }, where: { type: "PAIEMENT_SALAIRE" } }),
-      prisma.reservation.aggregate({ _sum: { avanceVersee: true }, where: dateRange ? { dateDebut: dateRange } : undefined }),
-      prisma.reservation.findMany({ select: { totalAPayer: true, avanceVersee: true } }),
+      prisma.reservation.aggregate({ _sum: { avanceVersee: true }, where: { businessId } }),
+      prisma.reservation.aggregate({ _sum: { totalAPayer: true }, where: { businessId } }),
+      prisma.charge.aggregate({ _sum: { montantPaye: true }, where: { businessId, type: { in: [...EXPENSE_TYPES] } } }),
+      prisma.charge.aggregate({ _sum: { montantPaye: true }, where: { businessId, type: { in: [...DEBT_PAYMENT_TYPES] } } }),
+      prisma.charge.aggregate({ _sum: { montantPaye: true }, where: { businessId, type: "INVESTISSEMENT" } }),
+      prisma.charge.aggregate({ _sum: { montantPaye: true }, where: { businessId, type: "PAIEMENT_SALAIRE" } }),
+      prisma.reservation.aggregate({
+        _sum: { avanceVersee: true },
+        where: { businessId, ...(dateRange ? { dateDebut: dateRange } : {}) }
+      }),
+      prisma.reservation.findMany({ where: { businessId }, select: { totalAPayer: true, avanceVersee: true } }),
       prisma.charge.aggregate({
         _sum: { montantPaye: true },
-        where: { type: { in: [...EXPENSE_TYPES] }, dateHeure: dateRange }
+        where: { businessId, type: { in: [...EXPENSE_TYPES] }, dateHeure: dateRange }
       })
     ]);
 

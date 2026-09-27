@@ -18,11 +18,12 @@ const updateSchema = z.object({
 router.get(
   "/",
   authenticate,
-  asyncHandler(async (_req, res) => {
+  asyncHandler(async (req, res) => {
+    const businessId = req.user!.businessId!;
     const config = await prisma.adminConfig.upsert({
-      where: { id: "singleton" },
+      where: { businessId },
       update: {},
-      create: { id: "singleton" }
+      create: { businessId }
     });
     res.json(config);
   })
@@ -34,10 +35,11 @@ router.patch(
   authorize("ADMIN"),
   validateBody(updateSchema),
   asyncHandler(async (req, res) => {
+    const businessId = req.user!.businessId!;
     const config = await prisma.adminConfig.upsert({
-      where: { id: "singleton" },
+      where: { businessId },
       update: req.body,
-      create: { id: "singleton", ...req.body }
+      create: { businessId, ...req.body }
     });
     res.json(config);
   })

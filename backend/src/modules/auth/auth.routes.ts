@@ -40,10 +40,10 @@ router.post(
       throw ApiError.forbidden("Ce compte n'est pas encore activé. Contactez le support pour l'activer.");
     }
 
-    const token = signToken({ sub: user.id, role: user.role, email: user.email });
+    const token = signToken({ sub: user.id, role: user.role, email: user.email, businessId: user.businessId });
     res.json({
       token,
-      user: { id: user.id, nom: user.nom, email: user.email, role: user.role }
+      user: { id: user.id, nom: user.nom, email: user.email, role: user.role, businessId: user.businessId }
     });
   })
 );
@@ -122,7 +122,14 @@ router.get(
   asyncHandler(async (req, res) => {
     const user = await prisma.user.findUnique({ where: { id: req.user!.id } });
     if (!user) throw ApiError.notFound("User not found");
-    res.json({ id: user.id, nom: user.nom, email: user.email, role: user.role, telephone: user.telephone });
+    res.json({
+      id: user.id,
+      nom: user.nom,
+      email: user.email,
+      role: user.role,
+      telephone: user.telephone,
+      businessId: user.businessId
+    });
   })
 );
 

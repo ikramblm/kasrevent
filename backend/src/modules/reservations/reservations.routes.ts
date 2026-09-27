@@ -18,12 +18,29 @@ const includeRelations = {
   servicesTables: true
 };
 
+/**
+ * A crafted request could otherwise reference another business's Client/Salle id (they're
+ * still valid uuids, just not the caller's) and link a reservation across tenants —
+ * confirm the referenced row belongs to the caller's own business first.
+ */
+async function assertReferencesOwnedByBusiness(businessId: string, clientId?: string, salleId?: string) {
+  if (clientId) {
+    const client = await prisma.client.findUnique({ where: { id: clientId } });
+    if (!client || client.businessId !== businessId) throw ApiError.badRequest("Invalid clientId");
+  }
+  if (salleId) {
+    const salle = await prisma.salle.findUnique({ where: { id: salleId } });
+    if (!salle || salle.businessId !== businessId) throw ApiError.badRequest("Invalid salleId");
+  }
+}
+
 router.get(
   "/",
   asyncHandler(async (req, res) => {
     const { statut, clientId, salleId } = req.query as Record<string, string | undefined>;
     const reservations = await prisma.reservation.findMany({
       where: {
+        businessId: req.user!.businessId,
         statut: statut as any,
         clientId,
         salleId
@@ -42,7 +59,7 @@ router.get(
       where: { id: req.params.id },
       include: { ...includeRelations, accesInvites: true, confiscations: true }
     });
-    if (!reservation) throw ApiError.notFound("Reservation not found");
+    if (!reservation || reservation.businessId !== req.user!.businessId) throw ApiError.notFound("Reservation not found");
     res.json({ ...withComputed(reservation), invitationLink: buildInvitationLink(reservation) });
   })
 );
@@ -52,11 +69,17 @@ router.post(
   validateBody(createReservationSchema),
   asyncHandler(async (req, res) => {
     const data = req.body as any;
+    await assertReferencesOwnedByBusiness(req.user!.businessId!, data.clientId, data.salleId);
     if (data.salleId) {
-      await assertRoomAvailable({ salleId: data.salleId, dateDebut: data.dateDebut, dateFin: data.dateFin });
+      await assertRoomAvailable({
+        businessId: req.user!.businessId!,
+        salleId: data.salleId,
+        dateDebut: data.dateDebut,
+        dateFin: data.dateFin
+      });
     }
     const reservation = await prisma.reservation.create({
-      data: { ...data, utilisateurId: req.user!.id },
+      data: { ...data, utilisateurId: req.user!.id, businessId: req.user!.businessId! },
       include: includeRelations
     });
     res.status(201).json(withComputed(reservation));
@@ -68,14 +91,16 @@ router.patch(
   validateBody(updateReservationSchema),
   asyncHandler(async (req, res) => {
     const existing = await prisma.reservation.findUnique({ where: { id: req.params.id } });
-    if (!existing) throw ApiError.notFound("Reservation not found");
+    if (!existing || existing.businessId !== req.user!.businessId) throw ApiError.notFound("Reservation not found");
 
     const data = req.body as any;
+    await assertReferencesOwnedByBusiness(req.user!.businessId!, data.clientId, data.salleId);
     const nextSalleId = data.salleId ?? existing.salleId;
     const nextDebut = data.dateDebut ?? existing.dateDebut;
     const nextFin = data.dateFin ?? existing.dateFin;
     if (nextSalleId) {
       await assertRoomAvailable({
+        businessId: req.user!.businessId!,
         salleId: nextSalleId,
         dateDebut: nextDebut,
         dateFin: nextFin,
@@ -95,6 +120,8 @@ router.patch(
 router.delete(
   "/:id",
   asyncHandler(async (req, res) => {
+    const existing = await prisma.reservation.findUnique({ where: { id: req.params.id } });
+    if (!existing || existing.businessId !== req.user!.businessId) throw ApiError.notFound("Reservation not found");
     await prisma.reservation.delete({ where: { id: req.params.id } });
     res.status(204).send();
   })
@@ -104,7 +131,7 @@ router.delete(
 router.post(
   "/:id/close",
   asyncHandler(async (req, res) => {
-    const reservation = await closeReservation(req.params.id);
+    const reservation = await closeReservation(req.params.id, req.user!.businessId!);
     res.json(withComputed(reservation));
   })
 );
@@ -122,7 +149,7 @@ router.get(
       where: { id: req.params.id },
       include: { client: true, salle: true, servicesTables: { include: { traiteur: true } } }
     });
-    if (!reservation) throw ApiError.notFound("Reservation not found");
+    if (!reservation || reservation.businessId !== req.user!.businessId) throw ApiError.notFound("Reservation not found");
     const { resteAPayer } = withComputed(reservation);
 
     const doc = startPdf(res, `facture-${reservation.id}.pdf`);
@@ -167,7 +194,7 @@ router.get(
   "/:id/invites/:inviteId/pass.pdf",
   asyncHandler(async (req, res) => {
     const invite = await prisma.invite.findFirst({
-      where: { id: req.params.inviteId, reservationId: req.params.id },
+      where: { id: req.params.inviteId, reservationId: req.params.id, businessId: req.user!.businessId },
       include: { reservation: { include: { client: true, salle: true } } }
     });
     if (!invite) throw ApiError.notFound("Invite not found");
@@ -198,7 +225,7 @@ router.post(
   "/:id/archive",
   asyncHandler(async (req, res) => {
     const alsoDelete = req.query.alsoDelete === "true";
-    const archive = await archiveReservation(req.params.id, alsoDelete);
+    const archive = await archiveReservation(req.params.id, alsoDelete, req.user!.businessId!);
     res.status(201).json(archive);
   })
 );

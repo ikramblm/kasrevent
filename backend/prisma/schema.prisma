@@ -15,6 +15,7 @@ datasource db {
 }
 
 enum Role {
+  SUPERADMIN
   ADMIN
   GERANT
   USER
@@ -94,19 +95,54 @@ enum TypeDecoration {
   SCULPTURE
 }
 
+/// A paying customer (one venue business). The tenant boundary: every row of business
+/// data below belongs to exactly one Business, and every query is scoped to the caller's
+/// businessId (see backend/src/middleware/auth.ts, crudFactory.ts). SUPERADMIN users have
+/// no Business — they only manage this table itself via the businesses module.
+model Business {
+  id        String   @id @default(uuid())
+  nom       String
+  createdAt DateTime @default(now())
+
+  users               User[]
+  clients             Client[]
+  salles              Salle[]
+  reservations        Reservation[]
+  archives            ArchiveReservation[]
+  invites             Invite[]
+  accesInvites        AccesInvite[]
+  confiscations       ConfiscationTelephone[]
+  servicesTables      ServiceTable[]
+  fournisseurs        Fournisseur[]
+  traiteurs           Traiteur[]
+  employes            Employe[]
+  historiquePaie      HistoriquePaie[]
+  charges             Charge[]
+  decorations         Decoration[]
+  demandesReservation DemandeReservation[]
+  reponsesInvitation  ReponseInvitation[]
+  adminConfig         AdminConfig?
+
+  @@map("businesses")
+}
+
 model User {
-  id           String   @id @default(uuid())
+  id           String    @id @default(uuid())
   nom          String
-  role         Role     @default(USER)
+  role         Role      @default(USER)
   telephone    String?
-  email        String?  @unique
+  email        String?   @unique
   passwordHash String
   // Gates login for a freshly-provisioned deployment's owner account until the one-time
   // license fee is paid (cash, handled outside the app) — see auth.routes.ts POST /activate.
   // Defaults to true so staff accounts created later by an already-active admin work immediately.
-  actif        Boolean  @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  actif        Boolean   @default(true)
+  // Null only for SUPERADMIN (platform operators, not tied to any one business). Every
+  // ADMIN/GERANT/USER account must have one, enforced in application code.
+  businessId   String?
+  business     Business? @relation(fields: [businessId], references: [id])
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
   clients             Client[]
   salles              Salle[]
@@ -137,16 +173,18 @@ model LoginEvent {
 }
 
 model Client {
-  id          String   @id @default(uuid())
-  nom         String
-  prenom      String?
-  telephone   String?
-  email       String?
-  adresse     String?
+  id            String   @id @default(uuid())
+  businessId    String
+  business      Business @relation(fields: [businessId], references: [id])
+  nom           String
+  prenom        String?
+  telephone     String?
+  email         String?
+  adresse       String?
   utilisateurId String?
-  utilisateur User?    @relation(fields: [utilisateurId], references: [id])
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  utilisateur   User?    @relation(fields: [utilisateurId], references: [id])
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   reservations  Reservation[]
   confiscations ConfiscationTelephone[]
@@ -157,6 +195,8 @@ model Client {
 
 model Salle {
   id                 String   @id @default(uuid())
+  businessId         String
+  business           Business @relation(fields: [businessId], references: [id])
   nom                String
   localisation       String?
   lienLocalisation   String?
@@ -176,6 +216,8 @@ model Salle {
 
 model Reservation {
   id             String            @id @default(uuid())
+  businessId     String
+  business       Business          @relation(fields: [businessId], references: [id])
   clientId       String
   client         Client            @relation(fields: [clientId], references: [id])
   dateDebut      DateTime
@@ -209,6 +251,8 @@ model Reservation {
 /// Snapshot of a Reservation at the moment it is closed/cancelled and archived.
 model ArchiveReservation {
   id               String   @id @default(uuid())
+  businessId       String
+  business         Business @relation(fields: [businessId], references: [id])
   reservationId    String
   clientNom        String
   dateDebut        DateTime
@@ -230,6 +274,8 @@ model ArchiveReservation {
 
 model Invite {
   id             String        @id @default(uuid())
+  businessId     String
+  business       Business      @relation(fields: [businessId], references: [id])
   reservationId  String
   reservation    Reservation   @relation(fields: [reservationId], references: [id])
   clientId       String?
@@ -255,6 +301,8 @@ model Invite {
 /// One row per QR scan / check-in attempt (mirrors AppSheet's "Accès Invités").
 model AccesInvite {
   id             String       @id @default(uuid())
+  businessId     String
+  business       Business     @relation(fields: [businessId], references: [id])
   reservationId  String
   reservation    Reservation  @relation(fields: [reservationId], references: [id])
   inviteId       String
@@ -270,6 +318,8 @@ model AccesInvite {
 
 model ConfiscationTelephone {
   id                String             @id @default(uuid())
+  businessId        String
+  business          Business           @relation(fields: [businessId], references: [id])
   reservationId     String
   reservation       Reservation        @relation(fields: [reservationId], references: [id])
   inviteId          String?
@@ -289,6 +339,8 @@ model ConfiscationTelephone {
 
 model ServiceTable {
   id              String           @id @default(uuid())
+  businessId      String
+  business        Business         @relation(fields: [businessId], references: [id])
   reservationId   String
   reservation     Reservation      @relation(fields: [reservationId], references: [id])
   typeService     TypeServiceTable @default(AUCUN_SERVICE)
@@ -307,14 +359,16 @@ model ServiceTable {
 }
 
 model Fournisseur {
-  id        String   @id @default(uuid())
-  company   String
-  nom       String?
-  tel       String?
-  adresse   String?
-  logo      String?
-  dettes    Decimal  @default(0) @db.Decimal(12, 2)
-  createdAt DateTime @default(now())
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id])
+  company    String
+  nom        String?
+  tel        String?
+  adresse    String?
+  logo       String?
+  dettes     Decimal  @default(0) @db.Decimal(12, 2)
+  createdAt  DateTime @default(now())
 
   charges Charge[]
 
@@ -323,6 +377,8 @@ model Fournisseur {
 
 model Traiteur {
   id            String   @id @default(uuid())
+  businessId    String
+  business      Business @relation(fields: [businessId], references: [id])
   nom           String
   specialite    String[] @default([])
   contact       String?
@@ -344,6 +400,8 @@ model Traiteur {
 
 model Employe {
   id                 String    @id @default(uuid())
+  businessId         String
+  business           Business  @relation(fields: [businessId], references: [id])
   nom                String
   prenom             String?
   role               String
@@ -368,6 +426,8 @@ model Employe {
 
 model HistoriquePaie {
   id              String          @id @default(uuid())
+  businessId      String
+  business        Business        @relation(fields: [businessId], references: [id])
   employeId       String
   employe         Employe         @relation(fields: [employeId], references: [id])
   moisPaye        String?
@@ -385,6 +445,8 @@ model HistoriquePaie {
 
 model Charge {
   id              String          @id @default(uuid())
+  businessId      String
+  business        Business        @relation(fields: [businessId], references: [id])
   type            TypeCharge
   fournisseurId   String?
   fournisseur     Fournisseur?    @relation(fields: [fournisseurId], references: [id])
@@ -407,6 +469,8 @@ model Charge {
 
 model Decoration {
   id                String         @id @default(uuid())
+  businessId        String
+  business          Business       @relation(fields: [businessId], references: [id])
   nom               String
   type              TypeDecoration
   stockDisponible   Int?
@@ -417,9 +481,13 @@ model Decoration {
   @@map("decorations")
 }
 
-/// Public booking-request intake (was a Google Form in the original app).
+/// Public booking-request intake (was a Google Form in the original app). Submitted
+/// anonymously, so the caller must supply which Business it's for (no authenticated
+/// user to derive it from) — see public.routes.ts.
 model DemandeReservation {
   id                String       @id @default(uuid())
+  businessId        String
+  business          Business     @relation(fields: [businessId], references: [id])
   nomPrenom         String
   dateDebut         DateTime?
   dateFin           DateTime?
@@ -433,9 +501,12 @@ model DemandeReservation {
   @@map("demandes_reservation")
 }
 
-/// Guest RSVP intake (was a second Google Form in the original app).
+/// Guest RSVP intake (was a second Google Form in the original app). businessId is
+/// derived server-side from the Reservation being RSVP'd to, not supplied by the caller.
 model ReponseInvitation {
   id              String      @id @default(uuid())
+  businessId      String
+  business        Business    @relation(fields: [businessId], references: [id])
   nomPrenom       String
   numeroTelephone String?
   reservationId   String
@@ -445,9 +516,12 @@ model ReponseInvitation {
   @@map("reponses_invitation")
 }
 
-/// Site-wide configuration (was the "Admin" table: social links, WhatsApp number).
+/// Per-business configuration (was the "Admin" table: social links, WhatsApp number).
+/// One row per Business — previously a single hardcoded "singleton" row system-wide.
 model AdminConfig {
-  id              String   @id @default("singleton")
+  id              String   @id @default(uuid())
+  businessId      String   @unique
+  business        Business @relation(fields: [businessId], references: [id])
   nom             String?
   lienFacebook    String?
   lienInstagram   String?

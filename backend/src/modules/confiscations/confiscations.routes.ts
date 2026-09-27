@@ -21,7 +21,7 @@ router.get(
   asyncHandler(async (req, res) => {
     const { statut } = req.query as { statut?: string };
     const items = await prisma.confiscationTelephone.findMany({
-      where: { statut: statut as any },
+      where: { businessId: req.user!.businessId, statut: statut as any },
       include: { invite: true, reservation: true },
       orderBy: { heureConfiscation: "desc" }
     });
@@ -33,8 +33,12 @@ router.post(
   "/",
   validateBody(createSchema),
   asyncHandler(async (req, res) => {
+    const reservation = await prisma.reservation.findUnique({ where: { id: req.body.reservationId } });
+    if (!reservation || reservation.businessId !== req.user!.businessId) {
+      throw ApiError.badRequest("Invalid reservationId");
+    }
     const item = await prisma.confiscationTelephone.create({
-      data: { ...req.body, statut: "CONFISQUE", utilisateurId: req.user!.id }
+      data: { ...req.body, statut: "CONFISQUE", utilisateurId: req.user!.id, businessId: req.user!.businessId! }
     });
     res.status(201).json(item);
   })
@@ -45,7 +49,7 @@ router.post(
   "/:id/restitute",
   asyncHandler(async (req, res) => {
     const item = await prisma.confiscationTelephone.findUnique({ where: { id: req.params.id } });
-    if (!item) throw ApiError.notFound("Confiscation record not found");
+    if (!item || item.businessId !== req.user!.businessId) throw ApiError.notFound("Confiscation record not found");
     const updated = await prisma.confiscationTelephone.update({
       where: { id: req.params.id },
       data: { statut: "RESTITUE", heureRestitution: new Date() }
