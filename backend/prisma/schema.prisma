@@ -101,6 +101,10 @@ model User {
   telephone    String?
   email        String?  @unique
   passwordHash String
+  // Gates login for a freshly-provisioned deployment's owner account until the one-time
+  // license fee is paid (cash, handled outside the app) — see auth.routes.ts POST /activate.
+  // Defaults to true so staff accounts created later by an already-active admin work immediately.
+  actif        Boolean  @default(true)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 

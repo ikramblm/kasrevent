@@ -5,6 +5,11 @@ const prisma = new PrismaClient();
 
 async function main() {
   const adminPassword = process.env.SEED_ADMIN_PASSWORD ?? "ChangeMe123!";
+  // A freshly provisioned deployment (a new paying customer's copy of the app) starts
+  // deactivated by default — set SEED_ADMIN_ACTIVE=true for your own dev/demo deployments
+  // where there's no license fee to collect. Activate a real customer's account via
+  // POST /auth/activate once they've paid (see ACTIVATION_SECRET in env.ts).
+  const seedActive = process.env.SEED_ADMIN_ACTIVE === "true";
   const admin = await prisma.user.upsert({
     where: { email: "admin@kasrevent.local" },
     update: {},
@@ -12,7 +17,8 @@ async function main() {
       nom: "Administrateur",
       email: "admin@kasrevent.local",
       role: "ADMIN",
-      passwordHash: await hashPassword(adminPassword)
+      passwordHash: await hashPassword(adminPassword),
+      actif: seedActive
     }
   });
 
@@ -23,7 +29,8 @@ async function main() {
       nom: "Gérant",
       email: "gerant@kasrevent.local",
       role: "GERANT",
-      passwordHash: await hashPassword(adminPassword)
+      passwordHash: await hashPassword(adminPassword),
+      actif: seedActive
     }
   });
 
@@ -62,6 +69,7 @@ async function main() {
 
   console.log("Seeded:", { admin: admin.email, gerant: gerant.email, salle: salle.nom, client: client.nom });
   console.log(`Default password for seeded users: ${adminPassword}`);
+  console.log(`Admin/Gérant accounts active: ${seedActive} (set SEED_ADMIN_ACTIVE=true to seed them pre-activated)`);
 }
 
 main()

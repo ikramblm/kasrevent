@@ -19,7 +19,11 @@ export const env = {
   jwtSecret: required("JWT_SECRET", "dev-secret-change-me"),
   jwtExpiresIn: process.env.JWT_EXPIRES_IN ?? "8h",
   bcryptSaltRounds: Number(process.env.BCRYPT_SALT_ROUNDS ?? 12),
-  publicAppUrl: process.env.PUBLIC_APP_URL ?? "http://localhost:5173"
+  publicAppUrl: process.env.PUBLIC_APP_URL ?? "http://localhost:5173",
+  // The secret used to activate this deployment's owner account after the one-time license
+  // fee is paid (see auth.routes.ts POST /activate). Left unset, activation is always refused
+  // — every deployment must set its own value so one customer's secret can't unlock another's.
+  activationSecret: process.env.ACTIVATION_SECRET
 };
 
 export const isProduction = env.nodeEnv === "production";
