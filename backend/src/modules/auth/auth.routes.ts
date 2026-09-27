@@ -48,11 +48,34 @@ router.post(
   })
 );
 
+async function activateAccount(email: string, secret: string) {
+  if (!isValidActivationSecret(secret, process.env.ACTIVATION_SECRET)) {
+    throw ApiError.unauthorized("Invalid activation secret");
+  }
+  const user = await prisma.user.findUnique({ where: { email } });
+  if (!user) throw ApiError.notFound("User not found");
+  if (user.actif) return { alreadyActive: true, user };
+  await prisma.user.update({ where: { id: user.id }, data: { actif: true } });
+  return { alreadyActive: false, user };
+}
+
+function activationPage(title: string, message: string) {
+  return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>${title}</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>body{font-family:system-ui,sans-serif;text-align:center;padding:60px 20px;background:#f5f5f5}
+h1{font-size:1.4rem}p{color:#555}</style></head>
+<body><h1>${title}</h1><p>${message}</p></body></html>`;
+}
+
 /**
  * Activates a deployment's owner account once its one-time license fee has been paid
  * (handled outside the app, e.g. cash) — deliberately unauthenticated since an inactive
  * account can't obtain a JWT to call an authenticated endpoint. Gated by ACTIVATION_SECRET,
  * a value only the app's operator knows, set per-deployment as a Railway environment variable.
+ *
+ * Exposed as both POST (JSON, for scripts/tests) and GET (returns an HTML page, so opening a
+ * bookmarked link like /api/auth/activate?email=...&secret=... in any phone browser is enough
+ * to activate a customer's account on the spot after they pay).
  */
 router.post(
   "/activate",
@@ -60,16 +83,36 @@ router.post(
   validateBody(activateSchema),
   asyncHandler(async (req, res) => {
     const { email, secret } = req.body;
-    if (!isValidActivationSecret(secret, process.env.ACTIVATION_SECRET)) {
-      throw ApiError.unauthorized("Invalid activation secret");
+    const { alreadyActive } = await activateAccount(email, secret);
+    res.json({ message: alreadyActive ? "Account already active" : "Account activated", alreadyActive });
+  })
+);
+
+router.get(
+  "/activate",
+  activateLimiter,
+  asyncHandler(async (req, res) => {
+    const email = String(req.query.email ?? "");
+    const secret = String(req.query.secret ?? "");
+    const parsed = activateSchema.safeParse({ email, secret });
+    if (!parsed.success) {
+      return res.status(400).send(activationPage("Lien invalide", "Email ou secret manquant/invalide dans le lien."));
     }
-    const user = await prisma.user.findUnique({ where: { email } });
-    if (!user) throw ApiError.notFound("User not found");
-    if (user.actif) {
-      return res.json({ message: "Account already active", alreadyActive: true });
+    try {
+      const { alreadyActive, user } = await activateAccount(parsed.data.email, parsed.data.secret);
+      res.send(
+        activationPage(
+          alreadyActive ? "Déjà activé" : "Compte activé ✅",
+          alreadyActive
+            ? `Le compte ${user.email} était déjà actif.`
+            : `Le compte ${user.email} est maintenant activé. Le client peut se connecter.`
+        )
+      );
+    } catch (err) {
+      const status = err instanceof ApiError ? err.status : 500;
+      const msg = err instanceof ApiError ? err.message : "Erreur inattendue.";
+      res.status(status).send(activationPage("Échec de l'activation", msg));
     }
-    await prisma.user.update({ where: { id: user.id }, data: { actif: true } });
-    res.json({ message: "Account activated", alreadyActive: false });
   })
 );
 
