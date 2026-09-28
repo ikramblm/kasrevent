@@ -30,9 +30,15 @@ flutter:
   uses-material-design: true
   assets:
     - assets/icon/app_icon.png
+    - assets/icon/app_icon_foreground.png
 
 flutter_launcher_icons:
   android: true
   ios: true
   image_path: "assets/icon/app_icon.png"
   remove_alpha_ios: true
+  # Proper Android adaptive icon: transparent-background foreground layer + solid
+  # background color, so the OS can mask/animate it correctly on API 26+ instead of
+  # just scaling the flat square image (which is what image_path alone produces).
+  adaptive_icon_background: "#4A1259"
+  adaptive_icon_foreground: "assets/icon/app_icon_foreground.png"
