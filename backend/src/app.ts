@@ -27,6 +27,7 @@ import demandesReservationRoutes from "./modules/demandesReservation/demandesRes
 import reponsesInvitationRoutes from "./modules/reponsesInvitation/reponsesInvitation.routes";
 import adminConfigRoutes from "./modules/adminConfig/adminConfig.routes";
 import publicRoutes from "./modules/public/public.routes";
+import legalRoutes from "./modules/legal/legal.routes";
 
 export function createApp() {
   const app = express();
@@ -42,6 +43,7 @@ export function createApp() {
   }
 
   app.get("/health", (_req, res) => res.json({ status: "ok" }));
+  app.use(legalRoutes);
 
   app.use("/api/auth", authRoutes);
   app.use("/api/businesses", businessesRoutes);
