@@ -6,8 +6,6 @@ const router = Router();
  * Hosted so there's a real, stable URL to put in the Google Play Console "Privacy policy"
  * field — Play requires one for any app that collects personal info, which this app does
  * (client/guest/staff names, phone numbers, emails entered by business staff).
- * Contact email is a placeholder — replace SUPPORT_EMAIL_PLACEHOLDER with a real inbox
- * before publishing.
  */
 const PRIVACY_HTML = `<!DOCTYPE html>
 <html lang="fr">
@@ -73,7 +71,7 @@ conçue pour être utilisée par des enfants.</p>
 révision.</p>
 
 <h2>Contact</h2>
-<p>Pour toute question relative à cette politique ou à vos données : <strong>SUPPORT_EMAIL_PLACEHOLDER</strong></p>
+<p>Pour toute question relative à cette politique ou à vos données : <strong>ikramblmhd7@gmail.com</strong></p>
 </body>
 </html>`;
 
