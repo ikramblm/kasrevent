@@ -57,6 +57,27 @@ class _AdminConfigScreenState extends State<AdminConfigScreen> {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Configuration enregistrée ✓')));
     } catch (e) {
       if (!mounted) return;
+      // A dropped connection (common on a slow/flaky mobile path) doesn't mean the save
+      // failed — re-fetch and refresh the fields with whatever's actually saved server-side
+      // instead of leaving the form looking unsaved when it may well have gone through.
+      if (isConnectionError(e)) {
+        try {
+          final data = await context.read<ApiClient>().dio.get('/admin-config').then((r) => r.data as Map<String, dynamic>);
+          if (!mounted) return;
+          _nomCtrl.text = data['nom'] ?? '';
+          _whatsappCtrl.text = data['numeroWhatsapp'] ?? '';
+          _facebookCtrl.text = data['lienFacebook'] ?? '';
+          _instagramCtrl.text = data['lienInstagram'] ?? '';
+          _utileCtrl.text = data['lienUtile'] ?? '';
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text("Connexion lente : vérification en cours…")),
+          );
+        } catch (_) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+        }
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _saving = false);

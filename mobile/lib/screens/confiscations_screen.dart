@@ -38,6 +38,13 @@ class _ConfiscationsScreenState extends State<ConfiscationsScreen> {
       setState(() => _future = _load());
     } catch (e) {
       if (!mounted) return;
+      if (isConnectionError(e)) {
+        setState(() => _future = _load());
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Connexion lente : vérification en cours…")),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     }
   }

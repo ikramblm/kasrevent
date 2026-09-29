@@ -52,7 +52,12 @@ class _CheckInScreenState extends State<CheckInScreen> {
       setState(() => _result = res.data as Map<String, dynamic>);
     } catch (e) {
       setState(() {
-        _error = apiErrorMessage(e, fallback: 'QR code invalide.');
+        // A dropped connection (common on a slow/flaky mobile path) is not the same as
+        // an actually-invalid QR code — the scan may well have already gone through.
+        // Saying "invalid" here would wrongly tell staff to turn away a real guest.
+        _error = isConnectionError(e)
+            ? "Connexion lente : vérifiez si l'invité est bien entré avant de rescanner."
+            : apiErrorMessage(e, fallback: 'QR code invalide.');
         _result = null;
       });
     } finally {

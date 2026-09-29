@@ -133,6 +133,15 @@ class _CreateChargeSheetState extends State<_CreateChargeSheet> {
       if (!mounted) return;
       Navigator.of(context).pop(true);
     } catch (e) {
+      // A dropped connection (common on a slow/flaky mobile path) doesn't mean the
+      // charge wasn't recorded — close and let the list reload show the ground truth
+      // instead of leaving the user staring at an error for an action that may have
+      // already gone through (and already applied its debt/payroll side effects).
+      if (isConnectionError(e)) {
+        if (!mounted) return;
+        Navigator.of(context).pop(true);
+        return;
+      }
       setState(() => _error = apiErrorMessage(e));
     } finally {
       if (mounted) setState(() => _saving = false);

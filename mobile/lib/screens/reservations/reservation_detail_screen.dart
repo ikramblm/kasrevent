@@ -69,6 +69,21 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
     if (mounted) setState(() {});
   }
 
+  /// A dropped connection on write (common on a slow/flaky mobile path to the backend)
+  /// doesn't mean the action failed — the server may have already completed it. Reload
+  /// either way instead of leaving the screen stale until the user manually refreshes.
+  void _handleWriteError(Object e) {
+    if (!mounted) return;
+    if (isConnectionError(e)) {
+      _load();
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Connexion lente : vérification en cours…")),
+      );
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+  }
+
   String _employeName(String id) {
     final match = _employees.where((e) => e.id == id);
     if (match.isEmpty) return 'Employé';
@@ -194,8 +209,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
       });
       _load();
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      _handleWriteError(e);
     }
   }
 
@@ -204,8 +218,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
       await context.read<ApiClient>().dio.post('/reponses-invitation/${reponse.id}/confirmer');
       _load();
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      _handleWriteError(e);
     }
   }
 
@@ -215,8 +228,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
       await api.dio.post('/reservations/${widget.reservationId}/close');
       _load();
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      _handleWriteError(e);
     }
   }
 
@@ -241,6 +253,16 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
       Navigator.of(context).pop();
     } catch (e) {
       if (!mounted) return;
+      // Unlike the other actions here, a dropped connection is ambiguous about
+      // whether the archive+delete went through — reload this same screen instead
+      // of assuming either way; a 404 on reload means it did complete.
+      if (isConnectionError(e)) {
+        _load();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Connexion lente : vérification en cours…")),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     }
   }
@@ -289,8 +311,7 @@ class _ReservationDetailScreenState extends State<ReservationDetailScreen> {
       });
       _load();
     } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
+      _handleWriteError(e);
     }
   }
 

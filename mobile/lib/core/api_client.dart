@@ -7,7 +7,14 @@ import 'storage_service.dart';
 /// interceptor pattern used by the web dashboard's api/client.ts.
 class ApiClient {
   ApiClient(this._storage) {
-    dio = Dio(BaseOptions(baseUrl: AppConfig.apiBaseUrl, connectTimeout: const Duration(seconds: 15)));
+    dio = Dio(BaseOptions(
+      baseUrl: AppConfig.apiBaseUrl,
+      connectTimeout: const Duration(seconds: 15),
+      // No receiveTimeout previously meant a dropped connection (common on a long,
+      // flaky mobile path to the backend) would just hang indefinitely instead of
+      // surfacing promptly as the connection error it is.
+      receiveTimeout: const Duration(seconds: 20),
+    ));
     dio.interceptors.add(
       InterceptorsWrapper(
         onRequest: (options, handler) async {
@@ -39,6 +46,12 @@ class ApiClient {
 /// so a generic "Validation failed" turns into something the user can actually act on —
 /// previously this detail was silently dropped, which is why a bad URL/short password
 /// looked like the form "did nothing" (found during the functional audit).
+/// True when Dio never got a response at all (dropped connection, timeout, DNS failure —
+/// anything short of the server actually replying). The request may well have reached the
+/// server and completed; only the response was lost on the way back. Distinct from a real
+/// rejection (4xx/5xx with a body), which means the action genuinely did not happen.
+bool isConnectionError(Object error) => error is DioException && error.response == null;
+
 String apiErrorMessage(Object error, {String fallback = "Une erreur est survenue."}) {
   if (error is DioException) {
     final data = error.response?.data;

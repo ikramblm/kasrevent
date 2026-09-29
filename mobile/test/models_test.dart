@@ -78,4 +78,29 @@ void main() {
       expect(apiErrorMessage(Exception('boom'), fallback: 'Oops'), 'Oops');
     });
   });
+
+  group('isConnectionError', () {
+    // Distinguishes "server rejected the request" (has a response body — the action
+    // genuinely did not happen) from "no response ever arrived" (dropped connection —
+    // the action may well have completed server-side, only the reply was lost).
+    test('is true for a DioException with no response (dropped connection/timeout)', () {
+      final error = DioException(
+        requestOptions: RequestOptions(path: '/clients'),
+        type: DioExceptionType.connectionTimeout,
+      );
+      expect(isConnectionError(error), isTrue);
+    });
+
+    test('is false for a DioException carrying a real server response', () {
+      final error = DioException(
+        requestOptions: RequestOptions(path: '/clients'),
+        response: Response(requestOptions: RequestOptions(path: '/clients'), statusCode: 400, data: {'error': 'Bad'}),
+      );
+      expect(isConnectionError(error), isFalse);
+    });
+
+    test('is false for a non-Dio error', () {
+      expect(isConnectionError(Exception('boom')), isFalse);
+    });
+  });
 }

@@ -39,6 +39,13 @@ class _EmployesScreenState extends State<EmployesScreen> {
       _reload();
     } catch (e) {
       if (!mounted) return;
+      if (isConnectionError(e)) {
+        _reload();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Connexion lente : vérification en cours…")),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     } finally {
       if (mounted) setState(() => _runningPayroll = false);
@@ -138,6 +145,13 @@ class _EmployesScreenState extends State<EmployesScreen> {
       _reload();
     } catch (e) {
       if (!mounted) return;
+      if (isConnectionError(e)) {
+        _reload();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Connexion lente : vérification en cours…")),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     }
   }

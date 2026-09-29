@@ -85,6 +85,16 @@ class _SimpleCrudScreenState<T> extends State<SimpleCrudScreen<T>> {
       _reload();
     } catch (e) {
       if (!mounted) return;
+      // A dropped connection (common on a slow/flaky mobile path) doesn't mean the
+      // delete failed — the server may have already completed it. Reload either way
+      // so the list reflects reality instead of staying stale until a manual refresh.
+      if (isConnectionError(e)) {
+        _reload();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Connexion lente : vérification en cours…")),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     }
   }
@@ -119,6 +129,13 @@ class _SimpleCrudScreenState<T> extends State<SimpleCrudScreen<T>> {
       _reload();
     } catch (e) {
       if (!mounted) return;
+      if (isConnectionError(e)) {
+        _reload();
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text("Connexion lente : vérification en cours…")),
+        );
+        return;
+      }
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(apiErrorMessage(e))));
     }
   }
