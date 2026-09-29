@@ -1,7 +1,7 @@
 name: kasrevent_mobile
 description: "KasrEvent — native Android/iOS app for event hall booking and management."
 publish_to: 'none'
-version: 1.0.0+1
+version: 1.0.1+2
 
 environment:
   sdk: ^3.12.2
