@@ -9,3 +9,6 @@ coverage/
 .DS_Store
 frontend/.vite/
 backend/prisma/dev.db
+
+# Contains real account passwords and the app signing key password — never commit this.
+DEPLOYMENT.md
